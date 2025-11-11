@@ -79,28 +79,37 @@ function SpawnMissionNPC(coords, heading)
         TaskPlayAnim(npcEntity, npcConfig.anim.dict, npcConfig.anim.name, 8.0, -8.0, -1, 1, 0, false, false, false)
     end
     
-    -- Obszar poszukiwań (czerwony okrąg)
-    areaBlip = AddBlipForRadius(coords.x, coords.y, coords.z, 150.0)
-    SetBlipHighDetail(areaBlip, true)
-    SetBlipColour(areaBlip, 1)
-    SetBlipAlpha(areaBlip, 128)
-    
-    -- Blip NPC
+    -- Blip NPC z waypointem
     npcBlip = AddBlipForCoord(coords.x, coords.y, coords.z)
     SetBlipSprite(npcBlip, 480)
     SetBlipScale(npcBlip, 0.8)
-    SetBlipColour(npcBlip, 2)
+    SetBlipColour(npcBlip, 5) -- Żółty kolor
+    SetBlipRoute(npcBlip, true) -- WAYPOINT!
+    SetBlipRouteColour(npcBlip, 5)
     BeginTextCommandSetBlipName('STRING')
-    AddTextComponentString('Zleceniodawca')
+    AddTextComponentString('Kontakt')
     EndTextCommandSetBlipName(npcBlip)
+    
+    print('^2[TRACKER CLIENT]^0 Mission NPC spawned with waypoint')
     
     CreateNPCInteraction(npcEntity, coords)
     
-    print('^2[TRACKER CLIENT]^0 Mission NPC spawned')
+    -- Notyfikacja dla gracza
+    if currentMission then
+        if currentMission.type == 2 then
+            ShowNotification('📍 Jedź do kontaktu po pojazd (żółty marker na mapie)', 'Etap 2: Transport', 'info')
+        elseif currentMission.type == 3 then
+            ShowNotification('📍 Jedź do punktu rozbiórki (żółty marker na mapie)', 'Etap 3: Rozbiórka', 'info')
+        end
+    end
 end
 
 function RemoveNPC()
     if npcEntity and DoesEntityExist(npcEntity) then
+        -- Usuń ox_target jeśli był dodany
+        pcall(function()
+            exports.ox_target:removeLocalEntity(npcEntity, {'npc_stage2_info', 'npc_stage3_info'})
+        end)
         DeleteEntity(npcEntity)
         npcEntity = nil
     end
@@ -116,6 +125,51 @@ function RemoveNPC()
 end
 
 function CreateNPCInteraction(npc, coords)
+    -- Dodaj ox_target do NPC
+    if currentMission and currentMission.active then
+        local options = {}
+        
+        if currentMission.type == 2 then
+            -- Stage 2: Transport
+            table.insert(options, {
+                name = 'npc_stage2_info',
+                label = '💬 Porozmawiaj z kontaktem',
+                icon = 'fa-solid fa-handshake',
+                distance = 3.0,
+                onSelect = function()
+                    lib.alertDialog({
+                        header = '🚗 Zlecenie: Transport',
+                        content = 'Odbierz ten pojazd i dostarcz go do kryjówki.\n\n⚠️ Policja będzie ostrzeżona!\n🎯 Unikaj pościgu i jedź do punktu na mapie.',
+                        centered = true,
+                        labels = {confirm = 'Rozumiem'}
+                    })
+                end
+            })
+        elseif currentMission.type == 3 then
+            -- Stage 3: Rozbiórka
+            table.insert(options, {
+                name = 'npc_stage3_info',
+                label = '💬 Porozmawiaj z kontaktem',
+                icon = 'fa-solid fa-wrench',
+                distance = 3.0,
+                onSelect = function()
+                    lib.alertDialog({
+                        header = '🔧 Zlecenie: Rozbiórka',
+                        content = 'Rozmontuj ten pojazd na części.\n\n🔨 Kliknij na każdą część pojazdu aby ją zdemontować\n📦 Załaduj części do busa\n💰 Dostarcz bus z częściami do punktu sprzedaży',
+                        centered = true,
+                        labels = {confirm = 'Rozumiem'}
+                    })
+                end
+            })
+        end
+        
+        if #options > 0 then
+            exports.ox_target:addLocalEntity(npc, options)
+            print('^2[TRACKER CLIENT]^0 NPC ox_target added for stage', currentMission.type)
+        end
+    end
+    
+    -- Fallback: Text3D i E
     CreateThread(function()
         while DoesEntityExist(npc) and npc == npcEntity do
             Wait(0)
@@ -128,9 +182,23 @@ function CreateNPCInteraction(npc, coords)
                 DrawText3D(coords.x, coords.y, coords.z + 1.0, ConfigTexts.Text3D.npc)
                 
                 if dist < 2.0 and IsControlJustPressed(0, 38) then
-                    -- Tu możesz dodać logikę interakcji z NPC podczas misji
-                    -- Na przykład: potwierdzenie odbioru zlecenia, dodatkowe informacje, itp.
-                    ShowNotification('NPC potwierdza zlecenie', 'Informacja', 'info')
+                    if currentMission and currentMission.type == 2 then
+                        lib.alertDialog({
+                            header = '🚗 Zlecenie: Transport',
+                            content = 'Odbierz ten pojazd i dostarcz go do kryjówki.\n\n⚠️ Policja będzie ostrzeżona!\n🎯 Unikaj pościgu i jedź do punktu na mapie.',
+                            centered = true,
+                            labels = {confirm = 'Rozumiem'}
+                        })
+                    elseif currentMission and currentMission.type == 3 then
+                        lib.alertDialog({
+                            header = '🔧 Zlecenie: Rozbiórka',
+                            content = 'Rozmontuj ten pojazd na części.\n\n🔨 Kliknij na każdą część pojazdu aby ją zdemontować\n📦 Załaduj części do busa\n💰 Dostarcz bus z częściami do punktu sprzedaży',
+                            centered = true,
+                            labels = {confirm = 'Rozumiem'}
+                        })
+                    else
+                        ShowNotification('NPC potwierdza zlecenie', 'Informacja', 'info')
+                    end
                 end
             end
         end
@@ -261,16 +329,6 @@ end
 -- ============================================
 
 RegisterNetEvent('td_tracker:client:startMission', function(data)
-    print('^3[TRACKER CLIENT DEBUG]^0 ========== RECEIVED START MISSION ==========')
-    print('^3[TRACKER CLIENT DEBUG]^0 Mission type:', data and data.type or 'NIL')
-    print('^3[TRACKER CLIENT DEBUG]^0 Full data:', json.encode(data))
-    
-    if not data then
-        print('^1[TRACKER CLIENT ERROR]^0 Received NIL data!')
-        return
-    end
-    
-    -- ... reszta
     print('^3[TRACKER CLIENT DEBUG]^0 Starting mission type:', data.type)
     print('^3[TRACKER CLIENT DEBUG]^0 Data received:', json.encode(data))
     
@@ -608,8 +666,6 @@ function StartStage2(data)
     -- SPAWN NPC przy punkcie odbioru pojazdu!
     SpawnMissionNPC(vector3(spawn.x, spawn.y, spawn.z), spawn.w or 0.0)
     
-    ShowNotification('Odbierz ukryty pojazd od kontaktu na mapie', 'Etap 2: Transport', 'info')
-    
     SpawnTransportVehicle(spawn, data.vehicleModel, hideout)
     
     currentMission.stage = 'pickup'
@@ -724,9 +780,6 @@ function StartStage3(data)
     -- SPAWN NPC przy lokalizacji rozbiórki!
     SpawnMissionNPC(vector3(loc.x, loc.y, loc.z), loc.w or 0.0)
     
-    ShowNotification('Rozmontuj pojazd na części i sprzedaj kontaktowi', 'Etap 3: Rozbiórka', 'info')
-    
-    CreateWaypointBlip(vector3(loc.x, loc.y, loc.z))
     SpawnDismantleVehicles(loc, data.vehicleModel)
     
     currentMission.stage = 'dismantle'

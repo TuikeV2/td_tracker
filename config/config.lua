@@ -3,7 +3,7 @@ Config = {}
 Config.Framework = 'esx'
 Config.DispatchSystem = 'cd_dispatch'
 
-Config.EnableAntiCheat = true
+Config.EnableAntiCheat = false
 Config.MaxDistanceFromVehicle = 150.0
 Config.MaxDistanceFromNPC = 10.0
 Config.CheckInterval = 5000
