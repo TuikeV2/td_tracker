@@ -29,7 +29,6 @@ end
 -- ============================================
 -- KOMENDA /starttracker - TYLKO DLA ADMINÓW
 -- ============================================
--- Ten kod dodać do commands.lua (już tam jest, ale oto jak działa)
 
 RegisterCommand('starttracker', function(src, args)
     print('^3[TRACKER DEBUG]^0 Command /starttracker executed by:', src)
@@ -65,7 +64,6 @@ RegisterCommand('starttracker', function(src, args)
     
     print('^2[TRACKER DEBUG]^0 Calling StartMissionForPlayer for stage', stage)
     
-    -- Ta funkcja znajduje się w main.lua (server)
     local success = StartMissionForPlayer(src, stage)
     
     if success then
@@ -268,7 +266,7 @@ RegisterCommand('tracker', function(src, args)
     elseif action == 'start' then
         local target = tonumber(args[2])
         local stage = tonumber(args[3])
-        
+
         if not target or not stage then
             TriggerClientEvent('ox_lib:notify', src, {
                 title = 'Błąd',
@@ -277,9 +275,9 @@ RegisterCommand('tracker', function(src, args)
             })
             return
         end
-        
+
         print('^2[TRACKER DEBUG]^0 Starting mission for player', target, 'stage', stage)
-        
+
         local xPlayer = ESX.GetPlayerFromId(target)
         if xPlayer then
             local success = StartMissionForPlayer(target, stage)
@@ -297,13 +295,24 @@ RegisterCommand('tracker', function(src, args)
                 type = 'error'
             })
         end
-        
+
+    elseif action == 'npc' then
+        print('^2[TRACKER DEBUG]^0 Spawning NPC for player', src)
+
+        TriggerClientEvent('td_tracker:client:spawnNPC', src)
+
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = 'Sukces',
+            description = 'Zleceniodawca został zespawnowany',
+            type = 'success'
+        })
+
     else
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Komendy Tracker',
-            description = '/starttracker [1-3]\n/tracker rep [ID] [ilość]\n/tracker stats [ID]\n/tracker cooldown [ID]\n/tracker clearall\n/tracker debug\n/tracker cancel [ID]\n/tracker start [ID] [1-3]',
+            description = '/starttracker [1-3]\n/tracker npc - Spawn NPC\n/tracker rep [ID] [ilość]\n/tracker stats [ID]\n/tracker cooldown [ID]\n/tracker clearall\n/tracker debug\n/tracker cancel [ID]\n/tracker start [ID] [1-3]\n\n**Dla graczy:**\n/cancelmission - Anuluj misję',
             type = 'info',
-            duration = 12000
+            duration = 15000
         })
     end
 end, false)

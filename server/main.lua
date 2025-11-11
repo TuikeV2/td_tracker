@@ -1,3 +1,5 @@
+-- [[ TD Tracker - Server Main ]] --
+
 local ESX = exports['es_extended']:getSharedObject()
 _G.activeMissions = {} -- Globalna zmienna
 
@@ -68,7 +70,7 @@ function GenerateStage1Data()
     
     local area = ConfigLocations.Stage1.searchAreas[math.random(#ConfigLocations.Stage1.searchAreas)]
     local plate = GeneratePlate()
-    local plates = GenerateSimilarPlates(plate, 3) -- Zwiększ do 3 pojazdów
+    local plates = GenerateSimilarPlates(plate, 5) -- 5 pojazdów jak w README
     local model = ConfigLocations.Stage1.vehicles[math.random(#ConfigLocations.Stage1.vehicles)]
     
     print('^3[TRACKER DEBUG]^0 Target plate:', plate)
@@ -105,7 +107,6 @@ function GenerateStage2Data()
         print('^3[TRACKER DEBUG]^0 vehicles count:', ConfigLocations.Stage2.vehicles and #ConfigLocations.Stage2.vehicles or 0)
     end
     
-    -- ... reszta funkcji
     print('^3[TRACKER DEBUG]^0 Generating Stage 2 data...')
     
     if not ConfigLocations or not ConfigLocations.Stage2 then
@@ -202,6 +203,119 @@ function GenerateMissionData(stage)
     print('^1[TRACKER ERROR]^0 Invalid stage:', stage)
     return nil
 end
+
+-- ============================================
+-- POBIERANIE DOSTĘPNYCH MISJI DLA GRACZA
+-- ============================================
+
+RegisterNetEvent('td_tracker:server:getAvailableStages', function()
+    local src = source
+    local xPlayer = ESX.GetPlayerFromId(src)
+    local identifier = xPlayer.identifier
+    
+    -- 1. Sprawdzenie, czy gracz już ma aktywną misję
+    if activeMissions[src] then
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = 'TD Tracker', 
+            description = 'Już masz aktywną misję!', 
+            type = 'error'
+        })
+        return
+    end
+
+    -- 2. Sprawdzenie cooldownu
+    -- UWAGA: Jeśli IsOnCooldown zwróci true, powiadamiamy i PRZERYWAMY
+    if IsOnCooldown(identifier) then
+        local remainingTime = GetCooldownTime(identifier) 
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = 'TD Tracker', 
+            description = 'Musisz poczekać! Misja dostępna za: ' .. FormatTime(remainingTime), 
+            type = 'error'
+        })
+        return
+    end
+
+    -- 3. Pobranie reputacji i dostępnych etapów
+    local reputation = GetReputation(identifier)
+    local availableStages = GetAvailableStages(reputation)
+
+    -- 4. Wysłanie listy do klienta, aby wyświetlił menu
+    TriggerClientEvent('td_tracker:client:showMissionSelection', src, availableStages)
+end)
+
+-- ============================================
+-- OBSŁUGA ROZPOCZĘCIA MISJI PRZEZ GRACZA (SERVER)
+-- ============================================
+
+RegisterNetEvent('td_tracker:server:requestMissionStart', function(selectedStage)
+    local src = source
+    local xPlayer = ESX.GetPlayerFromId(src)
+    local identifier = xPlayer.identifier
+    
+    -- Walidacja: Upewnienie się, że gracz wybrał etap
+    if not selectedStage or type(selectedStage) ~= 'number' or selectedStage < 1 or selectedStage > 3 then
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = 'TD Tracker', 
+            description = 'Błąd w wyborze misji. Spróbuj ponownie.', 
+            type = 'error'
+        })
+        return
+    end
+    
+    -- 1. Sprawdzenie, czy gracz już ma aktywną misję
+    if activeMissions[src] then
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = 'TD Tracker', 
+            description = 'Już masz aktywną misję!', 
+            type = 'error'
+        })
+        return
+    end
+
+    -- 2. Sprawdzenie cooldownu
+    if IsOnCooldown(identifier) then
+        local remainingTime = GetCooldownTime(identifier) 
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = 'TD Tracker', 
+            description = 'Musisz poczekać! Misja dostępna za: ' .. FormatTime(remainingTime), 
+            type = 'error'
+        })
+        return
+    end
+
+    -- 3. Weryfikacja, czy wybrany etap jest dostępny na podstawie reputacji
+    local reputation = GetReputation(identifier)
+    local stageConfig = Config.Stages[selectedStage]
+    
+    if not stageConfig or reputation < stageConfig.minReputation then
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = 'TD Tracker', 
+            description = 'Nie możesz podjąć tej misji! Wymagana reputacja: ' .. (stageConfig and stageConfig.minReputation or 'N/A'), 
+            type = 'error'
+        })
+        return
+    end
+
+    -- 4. Rozpoczęcie misji
+    local success = StartMissionForPlayer(src, selectedStage)
+
+    if success then
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = 'TD Tracker', 
+            description = string.format('Rozpoczynasz misję Etap %d (%s)! Uważaj na siebie.', selectedStage, stageConfig.name), 
+            type = 'success',
+            duration = 5000
+        })
+        -- Ustawienie cooldownu po pomyślnym rozpoczęciu
+        SetCooldown(identifier)
+    else
+        TriggerClientEvent('ox_lib:notify', src, {
+            title = 'TD Tracker', 
+            description = 'Nie udało się rozpocząć misji. Spróbuj ponownie za chwilę.', 
+            type = 'error'
+        })
+    end
+end)
 
 -- ============================================
 -- FUNKCJA STARTOWANIA MISJI (TYLKO JEDNA!)
@@ -421,9 +535,15 @@ RegisterNetEvent('td_tracker:server:failMission', function(type, reason)
     LogAction(xPlayer.identifier, 'mission_fail', {stage = type, reason = reason})
 end)
 
-RegisterNetEvent('td_tracker:server:vehicleStolen', function(coords)
+RegisterNetEvent('td_tracker:server:vehicleStolen', function(coords, vehicleModel)
     local src = source
-    NotifyPolice(coords, 'Kradzież pojazdu', src)
+
+    -- Określ stage na podstawie aktywnej misji
+    local mission = activeMissions[src]
+    local stage = mission and mission.type or 1
+
+    -- Wywołaj nową funkcję NotifyPolice z lb_tablet
+    NotifyPolice(coords, stage, vehicleModel)
 end)
 
 RegisterNetEvent('td_tracker:server:chaseEnded', function()

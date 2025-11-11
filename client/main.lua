@@ -1,3 +1,4 @@
+-- [[ TD Tracker - Client Main ]] --
 local ESX = exports['es_extended']:getSharedObject()
 local playerData = {}
 local currentMission = nil
@@ -11,12 +12,13 @@ local dismantledParts = {}
 local dismantleZones = {}
 
 -- ============================================
--- PODSTAWOWE EVENTY
+-- PODSTAWOWE ZMIENNE NPC/BLIP
 -- ============================================
 
 local npcEntity = nil
 local npcBlip = nil
 local areaBlip = nil
+local activeNPC = nil
 
 RegisterNetEvent('esx:playerLoaded', function(xPlayer)
     playerData = xPlayer
@@ -25,9 +27,6 @@ end)
 RegisterNetEvent('esx:setJob', function(job)
     playerData.job = job
 end)
-
--- USUNIĘTO AutoSpawnNPC() z onClientResourceStart!
--- NPC będzie spawnował się tylko podczas misji
 
 -- ============================================
 -- FUNKCJE POMOCNICZE
@@ -46,11 +45,171 @@ function GetCurrentMission()
 end
 
 -- ============================================
+-- CZYSZCZENIE NPC (SKONSOLIDOWANA FUNKCJA)
+-- ============================================
+
+function RemoveNPC()
+    if npcEntity and DoesEntityExist(npcEntity) then
+        pcall(function()
+            exports.ox_target:removeLocalEntity(npcEntity) 
+            Wait(200)
+        end)
+        DeleteEntity(npcEntity)
+        npcEntity = nil
+    end
+
+    if activeNPC and DoesEntityExist(activeNPC) then
+        pcall(function()
+            DeleteEntity(activeNPC)
+            activeNPC = nil
+        end)
+    end
+
+    if npcBlip and DoesBlipExist(npcBlip) then
+        RemoveBlip(npcBlip)
+        npcBlip = nil
+    end
+    if areaBlip and DoesBlipExist(areaBlip) then
+        RemoveBlip(areaBlip)
+        areaBlip = nil
+    end
+    print('^3[TRACKER CLIENT]^0 NPC(s) removed and cleanup attempted')
+end
+
+-- ============================================
+-- FUNKCJE SPAWNOWANIA I TARGETU GŁÓWNEGO NPC
+-- ============================================
+
+local currentNPCLocation = nil
+
+function SpawnMissionGiver()
+    if activeNPC and DoesEntityExist(activeNPC) then
+        exports.ox_target:removeLocalEntity(activeNPC)
+        DeleteEntity(activeNPC)
+        activeNPC = nil
+    end
+
+    local locations = ConfigMissions.NPCLocations
+    if not locations or #locations == 0 then
+        print('^1[TRACKER CLIENT]^0 Błąd: Brak konfiguracji NPCLocations w missions.lua.')
+        return
+    end
+
+    currentNPCLocation = locations[math.random(1, #locations)]
+    local coords = currentNPCLocation.coords
+    local model = GetHashKey(currentNPCLocation.model)
+
+    RequestModel(model)
+    while not HasModelLoaded(model) do
+        Wait(10)
+    end
+
+    -- Spawnowanie NPC
+    activeNPC = CreatePed(2, model, coords.x, coords.y, coords.z - 1.0, currentNPCLocation.heading, false, false)
+    SetPedFleeAttributes(activeNPC, 0, false)
+    SetPedDiesWhenInjured(activeNPC, false)
+    SetPedCanRagdoll(activeNPC, false)
+    SetEntityInvincible(activeNPC, true)
+    FreezeEntityPosition(activeNPC, true)
+    SetModelAsNoLongerNeeded(model)
+
+    -- Animacja
+    local anim = currentNPCLocation.animation
+    if anim and anim.dict and anim.name then
+        RequestAnimDict(anim.dict)
+        while not HasAnimDictLoaded(anim.dict) do
+            Wait(10)
+        end
+        TaskPlayAnim(activeNPC, anim.dict, anim.name, 8.0, 1.0, -1, 1, 0, false, false, false)
+        RemoveAnimDict(anim.dict)
+    end
+
+    -- Dodanie interakcji z ox_lib (używa E zamiast ALT)
+    local npcPoint = lib.points.new({
+        coords = coords,
+        distance = 2.5,
+        npc = activeNPC
+    })
+
+    function npcPoint:onEnter()
+        lib.showTextUI('[E] Zapytaj o robotę', {
+            position = "left-center",
+            icon = 'fas fa-handshake'
+        })
+    end
+
+    function npcPoint:onExit()
+        lib.hideTextUI()
+    end
+
+    function npcPoint:nearby()
+        if IsControlJustReleased(0, 38) then -- E key
+            if currentMission and currentMission.active then
+                lib.notify({title = 'TD Tracker', description = 'Już masz aktywną misję!', type = 'error'})
+                return
+            end
+
+            -- Wysłanie żądania na serwer o listę dostępnych misji dla gracza
+            TriggerServerEvent('td_tracker:server:getAvailableStages')
+        end
+    end
+
+    print(string.format('^2[TRACKER CLIENT]^0 NPC (Quest Giver) spawned at %s', tostring(coords)))
+end
+
+-- ============================================
+-- OBSŁUGA WYBORU MISJI (OX_LIB)
+-- ============================================
+
+RegisterNetEvent('td_tracker:client:showMissionSelection', function(availableStages)
+    if not availableStages or #availableStages == 0 then
+        lib.notify({
+            title = 'TD Tracker',
+            description = 'Twoja reputacja jest zbyt niska, by podjąć misję.',
+            type = 'error'
+        })
+        return
+    end
+
+    local options = {}
+
+    -- Tworzenie opcji menu z dostępnych etapów (Stages)
+    for _, stage in ipairs(availableStages) do
+        local config = Config.Stages[stage]
+        if config then
+             table.insert(options, {
+                title = 'Etap ' .. stage .. ' - ' .. config.name,
+                description = 'Wymagana Reputacja: ' .. config.minReputation .. ' | Szansa na A-B: ' .. config.chanceToAorB .. '%',
+                icon = 'fas fa-layer-group',
+                onSelect = function()
+                    TriggerServerEvent('td_tracker:server:requestMissionStart', stage)
+                end
+             })
+        end
+    end
+
+    table.insert(options, {
+        title = 'Anuluj',
+        icon = 'fas fa-times',
+        onSelect = function()
+            lib.notify({title = 'TD Tracker', description = 'Anulowano wybór misji.', type = 'info'})
+        end
+    })
+
+    lib.registerContext({
+        id = 'td_tracker_mission_selection',
+        title = 'Wybierz Rodzaj Roboty',
+        options = options
+    })
+
+    lib.showContext('td_tracker_mission_selection')
+end)
+
+-- ============================================
 -- SPAWN NPC PODCZAS MISJI
 -- ============================================
 
 function SpawnMissionNPC(coords, heading)
-    -- Usuń starego NPC jeśli istnieje
     RemoveNPC()
     
     print('^2[TRACKER CLIENT]^0 Spawning mission NPC at', coords)
@@ -83,8 +242,8 @@ function SpawnMissionNPC(coords, heading)
     npcBlip = AddBlipForCoord(coords.x, coords.y, coords.z)
     SetBlipSprite(npcBlip, 480)
     SetBlipScale(npcBlip, 0.8)
-    SetBlipColour(npcBlip, 5) -- Żółty kolor
-    SetBlipRoute(npcBlip, true) -- WAYPOINT!
+    SetBlipColour(npcBlip, 5)
+    SetBlipRoute(npcBlip, true)
     SetBlipRouteColour(npcBlip, 5)
     BeginTextCommandSetBlipName('STRING')
     AddTextComponentString('Kontakt')
@@ -92,11 +251,14 @@ function SpawnMissionNPC(coords, heading)
     
     print('^2[TRACKER CLIENT]^0 Mission NPC spawned with waypoint')
     
-    CreateNPCInteraction(npcEntity, coords)
+    -- Zmieniona nazwa, aby nie nadpisywać funkcji dla głównego NPC
+    CreateMissionStageNPCInteraction(npcEntity, coords) 
     
     -- Notyfikacja dla gracza
     if currentMission then
-        if currentMission.type == 2 then
+        if currentMission.type == 1 then
+            ShowNotification('📍 Udaj się do punktu poszukiwań pojazdu (żółty marker na mapie)', 'Etap 1: Kradzież', 'info')
+        elseif currentMission.type == 2 then
             ShowNotification('📍 Jedź do kontaktu po pojazd (żółty marker na mapie)', 'Etap 2: Transport', 'info')
         elseif currentMission.type == 3 then
             ShowNotification('📍 Jedź do punktu rozbiórki (żółty marker na mapie)', 'Etap 3: Rozbiórka', 'info')
@@ -104,100 +266,179 @@ function SpawnMissionNPC(coords, heading)
     end
 end
 
-function RemoveNPC()
-    if npcEntity and DoesEntityExist(npcEntity) then
-        -- Usuń ox_target jeśli był dodany
-        pcall(function()
-            exports.ox_target:removeLocalEntity(npcEntity, {'npc_stage2_info', 'npc_stage3_info'})
-        end)
-        DeleteEntity(npcEntity)
-        npcEntity = nil
-    end
-    if npcBlip and DoesBlipExist(npcBlip) then
-        RemoveBlip(npcBlip)
-        npcBlip = nil
-    end
-    if areaBlip and DoesBlipExist(areaBlip) then
-        RemoveBlip(areaBlip)
-        areaBlip = nil
-    end
-    print('^3[TRACKER CLIENT]^0 NPC removed')
-end
 
-function CreateNPCInteraction(npc, coords)
-    -- Dodaj ox_target do NPC
-    if currentMission and currentMission.active then
-        local options = {}
-        
-        if currentMission.type == 2 then
-            -- Stage 2: Transport
-            table.insert(options, {
-                name = 'npc_stage2_info',
-                label = '💬 Porozmawiaj z kontaktem',
-                icon = 'fa-solid fa-handshake',
-                distance = 3.0,
-                onSelect = function()
-                    lib.alertDialog({
-                        header = '🚗 Zlecenie: Transport',
-                        content = 'Odbierz ten pojazd i dostarcz go do kryjówki.\n\n⚠️ Policja będzie ostrzeżona!\n🎯 Unikaj pościgu i jedź do punktu na mapie.',
-                        centered = true,
-                        labels = {confirm = 'Rozumiem'}
-                    })
-                end
-            })
-        elseif currentMission.type == 3 then
-            -- Stage 3: Rozbiórka
-            table.insert(options, {
-                name = 'npc_stage3_info',
-                label = '💬 Porozmawiaj z kontaktem',
-                icon = 'fa-solid fa-wrench',
-                distance = 3.0,
-                onSelect = function()
-                    lib.alertDialog({
-                        header = '🔧 Zlecenie: Rozbiórka',
-                        content = 'Rozmontuj ten pojazd na części.\n\n🔨 Kliknij na każdą część pojazdu aby ją zdemontować\n📦 Załaduj części do busa\n💰 Dostarcz bus z częściami do punktu sprzedaży',
-                        centered = true,
-                        labels = {confirm = 'Rozumiem'}
-                    })
-                end
-            })
-        end
-        
-        if #options > 0 then
-            exports.ox_target:addLocalEntity(npc, options)
-            print('^2[TRACKER CLIENT]^0 NPC ox_target added for stage', currentMission.type)
-        end
+-- ============================================
+-- INTERAKCJE Z NPC NA ETAPACH MISJI
+-- ============================================
+function CreateMissionStageNPCInteraction(npc, coords)
+    if not npc or not DoesEntityExist(npc) then
+        print("CreateMissionStageNPCInteraction: npc nie istnieje")
+        return
     end
-    
-    -- Fallback: Text3D i E
+
+    local interactionDistance = 3.0
+
+    local function buildOptions()
+        local options = {}
+
+        if currentMission and currentMission.active then
+            if currentMission.type == 1 then
+                -- Etap 1: Kradzież
+                table.insert(options, {
+                    name = 'npc_stage1_info',
+                    label = '💬 Porozmawiaj z kontaktem',
+                    icon = 'fa-solid fa-user-secret',
+                    distance = interactionDistance,
+                    onSelect = function()
+                        local alert = lib.alertDialog({
+                            header = 'Zlecenie: Kradzież',
+                            content = 'Znajdź i ukradnij pojazd o podanych tablicach rejestracyjnych.\n\n🚨 Policja będzie ostrzeżona!\n🎯 Unikaj pościgu i dostarcz pojazd do wyznaczonego punktu.',
+                            centered = true,
+                            cancel = true,
+                            labels = {confirm = 'Rozumiem', cancel = 'Anuluj'}
+                        })
+                        if alert == 'confirm' then
+                            print('Gracz potwierdził etap 1: Kradzież')
+                        end
+                    end
+                })
+
+            elseif currentMission.type == 2 then
+                table.insert(options, {
+                    name = 'npc_stage2_info',
+                    label = '💬 Porozmawiaj z kontaktem',
+                    icon = 'fa-solid fa-handshake',
+                    distance = interactionDistance,
+                    onSelect = function()
+                        print('^3[TRACKER DEBUG]^0 Stage 2 NPC interaction - showing dialog')
+
+                        CreateThread(function()
+                            local alert = lib.alertDialog({
+                                header = 'Zlecenie: Transport',
+                                content = 'Odbierz ten pojazd i dostarcz go do kryjówki.\n\n⚠️ Policja będzie ostrzeżona!\n🎯 Unikaj pościgu i jedź do punktu na mapie.',
+                                centered = true,
+                                cancel = true,
+                                labels = {confirm = 'Rozumiem', cancel = 'Anuluj'}
+                            })
+
+                            print('^3[TRACKER DEBUG]^0 Dialog response:', alert)
+
+                            if alert == 'confirm' then
+                                print('^2[TRACKER]^0 Gracz potwierdził etap 2: Transport - spawning vehicle')
+                                print('^3[TRACKER DEBUG]^0 currentMission.spawnPoint:', json.encode(currentMission.spawnPoint))
+                                print('^3[TRACKER DEBUG]^0 currentMission.vehicleModel:', currentMission.vehicleModel)
+
+                                local spawnPoint = currentMission.spawnPoint
+                                local vehicleModel = currentMission.vehicleModel
+                                local deliveryPoint = currentMission.deliveryPoint
+
+                                RemoveNPC()
+                                SpawnTransportVehicle(spawnPoint, vehicleModel, deliveryPoint)
+                                currentMission.stage = 'pickup'
+                                print('^2[TRACKER]^0 Stage changed to pickup')
+                            else
+                                print('^1[TRACKER]^0 Dialog cancelled or closed')
+                            end
+                        end)
+                    end
+                })
+
+            elseif currentMission.type == 3 then
+                table.insert(options, {
+                    name = 'npc_stage3_info',
+                    label = '💬 Porozmawiaj z kontaktem',
+                    icon = 'fa-solid fa-wrench',
+                    distance = interactionDistance,
+                    onSelect = function()
+                        print('^3[TRACKER DEBUG]^0 Stage 3 NPC interaction - showing dialog')
+
+                        CreateThread(function()
+                            local alert = lib.alertDialog({
+                                header = 'Zlecenie: Rozbiórka',
+                                content = 'Rozmontuj ten pojazd na części.\n\n🔨 Kliknij na każdą część pojazdu aby ją zdemontować\n📦 Załaduj części do busa\n💰 Dostarcz bus z częściami do punktu sprzedaży',
+                                centered = true,
+                                cancel = true,
+                                labels = {confirm = 'Rozumiem', cancel = 'Anuluj'}
+                            })
+
+                            print('^3[TRACKER DEBUG]^0 Dialog response:', alert)
+
+                            if alert == 'confirm' then
+                                print('^2[TRACKER]^0 Gracz potwierdził etap 3: Rozbiórka - spawning vehicles')
+                                print('^3[TRACKER DEBUG]^0 currentMission.location:', json.encode(currentMission.location))
+                                print('^3[TRACKER DEBUG]^0 currentMission.vehicleModel:', currentMission.vehicleModel)
+
+                                local location = currentMission.location
+                                local vehicleModel = currentMission.vehicleModel
+
+                                RemoveNPC()
+                                SpawnDismantleVehicles(location, vehicleModel)
+                                currentMission.stage = 'dismantle'
+                                print('^2[TRACKER]^0 Stage changed to dismantle')
+                            else
+                                print('^1[TRACKER]^0 Dialog cancelled or closed')
+                            end
+                        end)
+                    end
+                })
+            end
+        end
+
+        return options
+    end
+
+    -- ✅ Rejestracja w ox_target
+    local options = buildOptions()
+    if #options > 0 then
+        exports.ox_target:addLocalEntity(npc, options)
+        print(string.format('^2[TRACKER CLIENT]^0 Mission Stage NPC ox_target added for stage %s', currentMission and currentMission.type or "unknown"))
+    end
+
+    -- 🔸 Fallback: Text3D + klawisz [E]
     CreateThread(function()
-        while DoesEntityExist(npc) and npc == npcEntity do
+        while DoesEntityExist(npc) do
             Wait(0)
             
             local ped = PlayerPedId()
             local playerCoords = GetEntityCoords(ped)
             local dist = #(playerCoords - coords)
-            
-            if ConfigBlips and ConfigBlips.Text3D and ConfigBlips.Text3D.enabled and dist < ConfigBlips.Text3D.distance then
-                DrawText3D(coords.x, coords.y, coords.z + 1.0, ConfigTexts.Text3D.npc)
-                
-                if dist < 2.0 and IsControlJustPressed(0, 38) then
-                    if currentMission and currentMission.type == 2 then
-                        lib.alertDialog({
-                            header = '🚗 Zlecenie: Transport',
-                            content = 'Odbierz ten pojazd i dostarcz go do kryjówki.\n\n⚠️ Policja będzie ostrzeżona!\n🎯 Unikaj pościgu i jedź do punktu na mapie.',
-                            centered = true,
-                            labels = {confirm = 'Rozumiem'}
-                        })
+
+            if dist < 3.0 then
+                -- Wyświetl 3D tekst (jeśli masz taką funkcję)
+                if ConfigBlips and ConfigBlips.Text3D and ConfigBlips.Text3D.enabled and dist < ConfigBlips.Text3D.distance then
+                    DrawText3D(coords.x, coords.y, coords.z + 1.0, ConfigTexts.Text3D.npc)
+                else
+                    lib.showTextUI('[E] - Porozmawiaj z NPC', {icon = 'fa-solid fa-comments'})
+                end
+                lib.hideTextUI()
+
+                if IsControlJustPressed(0, 38) then -- E
+                    local header, content = '', ''
+
+                    if currentMission and currentMission.type == 1 then
+                        header = '🚗 Zlecenie: Kradzież'
+                        content = 'Znajdź i ukradnij pojazd o podanych tablicach.\n🚨 Policja będzie ostrzeżona!\n🎯 Dostarcz pojazd do punktu.'
+                    elseif currentMission and currentMission.type == 2 then
+                        header = '🚗 Zlecenie: Transport'
+                        content = 'Odbierz pojazd i dostarcz do kryjówki.\n⚠️ Policja będzie ostrzeżona!\n🎯 Jedź do punktu na mapie.'
                     elseif currentMission and currentMission.type == 3 then
-                        lib.alertDialog({
-                            header = '🔧 Zlecenie: Rozbiórka',
-                            content = 'Rozmontuj ten pojazd na części.\n\n🔨 Kliknij na każdą część pojazdu aby ją zdemontować\n📦 Załaduj części do busa\n💰 Dostarcz bus z częściami do punktu sprzedaży',
-                            centered = true,
-                            labels = {confirm = 'Rozumiem'}
-                        })
+                        header = '🔧 Zlecenie: Rozbiórka'
+                        content = 'Rozmontuj pojazd na części i dostarcz do punktu sprzedaży.'
                     else
-                        ShowNotification('NPC potwierdza zlecenie', 'Informacja', 'info')
+                        header = '📜 Informacja'
+                        content = 'NPC potwierdza zlecenie.'
+                    end
+
+                    local alert = lib.alertDialog({
+                        header = header,
+                        content = content,
+                        centered = true,
+                        cancel = true,
+                        labels = {confirm = 'OK', cancel = 'Anuluj'}
+                    })
+
+                    if alert == 'confirm' then
+                        print('Dialog potwierdzony przez gracza')
                     end
                 end
             end
@@ -205,7 +446,108 @@ function CreateNPCInteraction(npc, coords)
     end)
 end
 
-function ShowNPCDialog(reputation, attempts, npc)
+function ShowNotification(msg, title, type)
+    lib.notify({
+        title = title or 'Tracker',
+        description = msg,
+        type = type or 'info'
+    })
+end
+
+function DrawText3D(x, y, z, text)
+    SetTextScale(0.35, 0.35)
+    SetTextFont(4)
+    SetTextProportional(1)
+    SetTextColour(255, 255, 255, 215)
+    SetTextEntry("STRING")
+    SetTextCentre(true)
+    AddTextComponentString(text)
+    SetDrawOrigin(x, y, z, 0)
+    DrawText(0.0, 0.0)
+    local factor = (string.len(text)) / 370
+    DrawRect(0.0, 0.0+0.0125, 0.017+ factor, 0.03, 0, 0, 0, 75)
+    ClearDrawOrigin()
+end
+
+function ShowHelp(msg)
+    BeginTextCommandDisplayHelp('STRING')
+    AddTextComponentSubstringPlayerName(msg)
+    EndTextCommandDisplayHelp(0, false, true, -1)
+end
+
+function FormatTime(sec)
+    local min = math.floor(sec / 60)
+    local s = sec % 60
+    return string.format('%02d:%02d', min, s)
+end
+
+function SpawnNPC()
+    local cfg = ConfigLocations.NPCSpawns[math.random(#ConfigLocations.NPCSpawns)]
+    
+    RequestModel(GetHashKey(cfg.model))
+    while not HasModelLoaded(GetHashKey(cfg.model)) do Wait(0) end
+    
+    local npc = CreatePed(4, GetHashKey(cfg.model), cfg.coords.x, cfg.coords.y, cfg.coords.z, cfg.heading, false, true)
+    
+    SetEntityInvincible(npc, true)
+    SetBlockingOfNonTemporaryEvents(npc, true)
+    FreezeEntityPosition(npc, true)
+    
+    if cfg.anim then
+        RequestAnimDict(cfg.anim.dict)
+        while not HasAnimDictLoaded(cfg.anim.dict) do Wait(0) end
+        TaskPlayAnim(npc, cfg.anim.dict, cfg.anim.name, 8.0, -8.0, -1, 1, 0, false, false, false)
+    end
+    
+    activeNPC = {
+        ped = npc,
+        coords = cfg.coords,
+        attempts = 0
+    }
+    
+    -- Zmieniona nazwa, aby nie nadpisywać funkcji dla etapów misji
+    CreateMainNPCInteraction() 
+    return npc
+end
+
+
+function CreateMainNPCInteraction()
+    if not activeNPC then return end
+    
+    local npc = activeNPC.ped
+    -- Właściwa rejestracja ox_target dla głównego NPC, który uruchamia dialog
+    exports.ox_target:addLocalEntity(npc, {
+        {
+            name = 'npc_mission_start',
+            label = '💰 Rozpocznij Zlecenie',
+            icon = 'fa-solid fa-handshake',
+            distance = 2.0,
+            onSelect = function()
+                TriggerServerEvent('td_tracker:server:requestDialog')
+            end
+        }
+    })
+    
+    CreateThread(function()
+        while activeNPC do
+            Wait(0)
+            
+            local ped = PlayerPedId()
+            local coords = GetEntityCoords(ped)
+            local dist = #(coords - activeNPC.coords)
+            
+            if ConfigBlips.Text3D.enabled and dist < ConfigBlips.Text3D.distance then
+                DrawText3D(activeNPC.coords.x, activeNPC.coords.y, activeNPC.coords.z + 1.0, ConfigTexts.Text3D.npc)
+                
+                if dist < 2.0 and IsControlJustPressed(0, 38) then
+                    TriggerServerEvent('td_tracker:server:requestDialog')
+                end
+            end
+        end
+    end)
+end
+
+RegisterNetEvent('td_tracker:client:showDialog', function(rep, stages)
     if IsPolice() then
         lib.alertDialog({
             header = ConfigTexts.Dialogs.policeWarning.title,
@@ -216,11 +558,92 @@ function ShowNPCDialog(reputation, attempts, npc)
         return
     end
     
+    local stageText = table.concat(stages, ', ')
+    local options = {}
+    
+    for _, stage in ipairs(stages) do
+        local cfg = ConfigTexts.Context['stage' .. stage]
+        table.insert(options, {
+            title = cfg.title,
+            description = cfg.description,
+            icon = cfg.icon,
+            onSelect = function()
+                TriggerServerEvent('td_tracker:server:startMission', stage)
+            end
+        })
+    end
+    
+    table.insert(options, {
+        title = ConfigTexts.Context.close.title,
+        icon = ConfigTexts.Context.close.icon
+    })
+    
+    lib.registerContext({
+        id = 'td_tracker_menu',
+        title = string.format(ConfigTexts.Dialogs.npcGreeting.description, rep, stageText),
+        options = options
+    })
+    
+    lib.showContext('td_tracker_menu')
+end)
+
+RegisterNetEvent('td_tracker:client:insufficientRep', function(req, cur)
+    if not activeNPC then return end
+    
+    activeNPC.attempts = activeNPC.attempts + 1
+    
+    ShowNotification(string.format(ConfigTexts.Dialogs.insufficientRep.description, req, cur), ConfigTexts.Dialogs.insufficientRep.title, 'error')
+    
+    if activeNPC.attempts >= Config.NPCAttemptsBeforeShooting then
+        MakeNPCHostile()
+    else
+        ShowNotification(string.format(ConfigTexts.Notifications.npcAngry.description, activeNPC.attempts, Config.NPCAttemptsBeforeShooting), ConfigTexts.Notifications.npcAngry.title, 'warning')
+    end
+end)
+
+function MakeNPCHostile()
+    if not activeNPC or not DoesEntityExist(activeNPC.ped) then return end
+    
+    local npc = activeNPC.ped
+    local ped = PlayerPedId()
+    
+    SetEntityInvincible(npc, false)
+    SetBlockingOfNonTemporaryEvents(npc, false)
+    FreezeEntityPosition(npc, false)
+    
+    GiveWeaponToPed(npc, GetHashKey('WEAPON_PISTOL'), 250, false, true)
+    TaskCombatPed(npc, ped, 0, 16)
+    
+    ShowNotification('NPC zaatakował!', 'Uwaga', 'error')
+    
+    SetTimeout(30000, function()
+        if DoesEntityExist(npc) then DeleteEntity(npc) end
+        activeNPC = nil
+    end)
+end
+
+
+AddEventHandler('onResourceStop', function(resource)
+    if resource == GetCurrentResourceName() then RemoveNPC() end
+end)
+function ShowNPCDialog(reputation, attempts, npc)
+    if IsPolice() then
+        lib.alertDialog({
+            header = ConfigTexts.Dialogs.policeWarning.title,
+            content = ConfigTexts.Dialogs.policeWarning.description,
+            centered = true,
+            cancel = false,
+            labels = {confirm = 'Zakończ'}
+        })
+        return
+    end
+    
     if currentMission and currentMission.active then
         lib.alertDialog({
             header = 'Masz już zlecenie',
             content = 'Dokończ obecne zlecenie zanim weźmiesz kolejne.',
             centered = true,
+            cancel = false,
             labels = {confirm = 'OK'}
         })
         return
@@ -234,29 +657,37 @@ function ShowNPCDialog(reputation, attempts, npc)
     end
     
     local options = {}
-    
     for _, stage in ipairs(availableStages) do
         local stageKey = 'stage' .. stage
         local stageConfig = ConfigTexts.Context[stageKey]
         local rewardConfig = ConfigRewards['Stage' .. stage]
         
-        local description = stageConfig.description .. '\n\n'
-        description = description .. '💰 Nagroda: $' .. rewardConfig.money.min .. '-' .. rewardConfig.money.max .. '\n'
-        description = description .. '⭐ Reputacja: +' .. rewardConfig.reputation.min .. '-' .. rewardConfig.reputation.max .. '\n'
-        description = description .. '⏱️ Czas: ~' .. math.floor(Config.MissionTimeLimit[stage] / 60000) .. ' min'
+        local description = stageConfig.description .. '\n\n' ..
+            '💰 Nagroda: $' .. rewardConfig.money.min .. '-' .. rewardConfig.money.max .. '\n' ..
+            '⭐ Reputacja: +' .. rewardConfig.reputation.min .. '-' .. rewardConfig.reputation.max .. '\n' ..
+            '⏱️ Czas: ~' .. math.floor(Config.MissionTimeLimit[stage] / 60000) .. ' min'
         
         table.insert(options, {
             title = stageConfig.title,
             description = description,
             icon = stageConfig.icon,
             onSelect = function()
-                print('^2[TRACKER CLIENT]^0 Player selected stage:', stage)
-                TriggerServerEvent('td_tracker:server:startMission', stage)
-                RemoveNPC()
+                local alert = lib.alertDialog({
+                    header = stageConfig.title,
+                    content = 'Czy na pewno chcesz rozpocząć to zlecenie?',
+                    centered = true,
+                    cancel = true,
+                    labels = {confirm = 'Tak', cancel = 'Nie'}
+                })
+                if alert == 'confirm' then
+                    print('^2[TRACKER CLIENT]^0 Player selected stage:', stage)
+                    TriggerServerEvent('td_tracker:server:startMission', stage)
+                    RemoveNPC()
+                end
             end
         })
     end
-    
+
     table.insert(options, {
         title = ConfigTexts.Context.close.title,
         icon = ConfigTexts.Context.close.icon
@@ -305,12 +736,12 @@ function ShowStatsDialog(stats)
     local successRate = stats.total_missions > 0 and math.floor((stats.successful_missions / stats.total_missions) * 100) or 0
     
     lib.alertDialog({
-        header = 'Twoje statystyki',
+        header = '📊 Twoje statystyki',
         content = string.format([[
-**Reputacja:** %d punktów
-**Misje ukończone:** %d
-**Misje nieudane:** %d
-**Wskaźnik sukcesu:** %d%%
+**Reputacja:** %d punktów  
+**Misje ukończone:** %d  
+**Misje nieudane:** %d  
+**Wskaźnik sukcesu:** %d%%  
 **Ostatnia misja:** %s
         ]], 
             stats.reputation,
@@ -320,6 +751,7 @@ function ShowStatsDialog(stats)
             stats.last_mission or 'Brak'
         ),
         centered = true,
+        cancel = false,
         labels = {confirm = 'Zamknij'}
     })
 end
@@ -627,7 +1059,8 @@ end
 function CleanupStage1()
     for _, veh in ipairs(spawnedVehicles) do
         if DoesEntityExist(veh) then 
-            exports.ox_target:removeLocalEntity(veh, 'check_plate')
+            -- Wyczyść wszystkie targety dla tego pojazdu
+            exports.ox_target:removeLocalEntity(veh)
             DeleteEntity(veh) 
         end
     end
@@ -641,50 +1074,54 @@ end
 function StartStage2(data)
     print('^3[TRACKER CLIENT DEBUG]^0 Starting Stage 2')
     print('^3[TRACKER CLIENT DEBUG]^0 Data received:', json.encode(data))
-    
+
     if not data.spawnPoint then
         print('^1[TRACKER CLIENT ERROR]^0 Missing spawnPoint!')
         FailMission('Brak danych misji')
         return
     end
-    
+
     if not data.hideout then
         print('^1[TRACKER CLIENT ERROR]^0 Missing hideout!')
         FailMission('Brak danych misji')
         return
     end
-    
+
     if not data.vehicleModel then
         print('^1[TRACKER CLIENT ERROR]^0 Missing vehicleModel!')
         FailMission('Brak danych misji')
         return
     end
-    
+
     local spawn = data.spawnPoint
     local hideout = data.hideout
-    
-    -- SPAWN NPC przy punkcie odbioru pojazdu!
-    SpawnMissionNPC(vector3(spawn.x, spawn.y, spawn.z), spawn.w or 0.0)
-    
-    SpawnTransportVehicle(spawn, data.vehicleModel, hideout)
-    
-    currentMission.stage = 'pickup'
+
+    currentMission.stage = 'talk_to_npc'
     currentMission.active = true
     currentMission.deliveryPoint = hideout
-    
-    print('^2[TRACKER CLIENT DEBUG]^0 Stage 2 initialized')
+    currentMission.vehicleModel = data.vehicleModel
+    currentMission.spawnPoint = spawn
+
+    SpawnMissionNPC(vector3(spawn.x, spawn.y, spawn.z), spawn.w or 0.0)
+
+    print('^2[TRACKER CLIENT DEBUG]^0 Stage 2 initialized - waiting for NPC interaction')
 end
 
 function SpawnTransportVehicle(spawn, model, hideout)
+    print('^3[TRACKER DEBUG]^0 SpawnTransportVehicle called')
+    print('^3[TRACKER DEBUG]^0 spawn:', json.encode(spawn))
+    print('^3[TRACKER DEBUG]^0 model:', model)
+
     local hash = GetHashKey(model)
     RequestModel(hash)
     while not HasModelLoaded(hash) do Wait(0) end
-    
+
     transportVehicle = CreateVehicle(hash, spawn.x, spawn.y, spawn.z, spawn.w or 0.0, true, false)
     SetVehicleDoorsLocked(transportVehicle, 1)
     SetVehicleEngineOn(transportVehicle, false, true, false)
-    
+
     currentMission.targetVehicle = transportVehicle
+    print('^2[TRACKER DEBUG]^0 Transport vehicle spawned:', transportVehicle)
     
     CreateThread(function()
         while DoesEntityExist(transportVehicle) and currentMission and currentMission.stage == 'pickup' do
@@ -757,6 +1194,7 @@ end
 
 function CleanupStage2()
     if transportVehicle and DoesEntityExist(transportVehicle) then
+        exports.ox_target:removeLocalEntity(transportVehicle) -- Wyczyść target na wszelki wypadek
         DeleteEntity(transportVehicle)
     end
     transportVehicle = nil
@@ -768,46 +1206,53 @@ end
 
 function StartStage3(data)
     print('^3[TRACKER CLIENT DEBUG]^0 Starting Stage 3')
-    
+
     if not data.location or not data.vehicleModel then
         print('^1[TRACKER CLIENT ERROR]^0 Missing Stage 3 data!')
         FailMission('Błąd danych misji')
         return
     end
-    
+
     local loc = data.location
-    
-    -- SPAWN NPC przy lokalizacji rozbiórki!
-    SpawnMissionNPC(vector3(loc.x, loc.y, loc.z), loc.w or 0.0)
-    
-    SpawnDismantleVehicles(loc, data.vehicleModel)
-    
-    currentMission.stage = 'dismantle'
+
+    currentMission.stage = 'talk_to_npc'
     currentMission.active = true
     currentMission.totalParts = #ConfigLocations.Stage3.parts
     currentMission.loadedParts = 0
+    currentMission.location = loc
+    currentMission.vehicleModel = data.vehicleModel
     dismantledParts = {}
+
+    SpawnMissionNPC(vector3(loc.x, loc.y, loc.z), loc.w or 0.0)
+
+    print('^2[TRACKER CLIENT DEBUG]^0 Stage 3 initialized - waiting for NPC interaction')
 end
 
 function SpawnDismantleVehicles(loc, model)
+    print('^3[TRACKER DEBUG]^0 SpawnDismantleVehicles called')
+    print('^3[TRACKER DEBUG]^0 loc:', json.encode(loc))
+    print('^3[TRACKER DEBUG]^0 model:', model)
+
     local vehHash = GetHashKey(model)
     local busHash = GetHashKey(ConfigLocations.Stage3.busModel)
-    
+
     RequestModel(vehHash)
     RequestModel(busHash)
     while not HasModelLoaded(vehHash) or not HasModelLoaded(busHash) do Wait(0) end
-    
+
     dismantleVehicle = CreateVehicle(vehHash, loc.x, loc.y, loc.z, loc.w or 0.0, true, false)
     SetVehicleDoorsLocked(dismantleVehicle, 3)
     SetEntityInvincible(dismantleVehicle, true)
-    
-    local busCoords = GetOffsetFromEntityInCoords(dismantleVehicle, 5.0, 0.0, 0.0)
+    print('^2[TRACKER DEBUG]^0 Dismantle vehicle spawned:', dismantleVehicle)
+
+    local busCoords = GetOffsetFromEntityInWorldCoords(dismantleVehicle, 5.0, 0.0, 0.0)
     busVehicle = CreateVehicle(busHash, busCoords.x, busCoords.y, busCoords.z, loc.w or 0.0, true, false)
     SetVehicleDoorsLocked(busVehicle, 3)
-    
+    print('^2[TRACKER DEBUG]^0 Bus vehicle spawned:', busVehicle)
+
     SetupDismantlePoints()
     SetupBusTarget()
-    
+
     print('^2[TRACKER CLIENT DEBUG]^0 Dismantle vehicles spawned')
 end
 
@@ -823,7 +1268,7 @@ function SetupDismantlePoints()
                 coords = GetWorldPositionOfEntityBone(dismantleVehicle, bone)
             end
         elseif part.offset then
-            coords = GetOffsetFromEntityInCoords(dismantleVehicle, part.offset.x, part.offset.y, part.offset.z)
+            coords = GetOffsetFromEntityInWorldCoords(dismantleVehicle, part.offset.x, part.offset.y, part.offset.z)
         end
         
         if coords then
@@ -1010,7 +1455,7 @@ function CleanupStage3()
     
     -- Usuń target z busa
     if DoesEntityExist(busVehicle) then
-        exports.ox_target:removeLocalEntity(busVehicle, 'load_part')
+        exports.ox_target:removeLocalEntity(busVehicle)
         DeleteEntity(busVehicle)
     end
     
@@ -1048,6 +1493,49 @@ RegisterNetEvent('td_tracker:client:cancelMission', function()
     if currentMission and currentMission.active then
         FailMission('Anulowano')
     end
+end)
+
+-- Funkcja anulowania misji z potwierdzeniem
+function CancelMissionWithConfirmation()
+    if not currentMission or not currentMission.active then
+        lib.notify({
+            title = 'TD Tracker',
+            description = 'Nie masz aktywnej misji',
+            type = 'error'
+        })
+        return
+    end
+
+    local alert = lib.alertDialog({
+        header = '⚠️ Anuluj misję',
+        content = string.format('Czy na pewno chcesz anulować misję?\n\n**Kara:** -%d reputacji\n**Aktywna misja:** Etap %d - %s',
+            ConfigRewards.FailurePenalty[currentMission.type] or 20,
+            currentMission.type,
+            Config.Stages[currentMission.type].name
+        ),
+        centered = true,
+        cancel = true,
+        labels = {confirm = 'Anuluj misję', cancel = 'Kontynuuj misję'}
+    })
+
+    if alert == 'confirm' then
+        print('^1[TRACKER]^0 Player manually cancelled mission')
+        FailMission('Anulowano ręcznie')
+    end
+end
+
+-- Komenda do anulowania misji (dla gracza)
+RegisterCommand('cancelmission', function()
+    CancelMissionWithConfirmation()
+end, false)
+
+RegisterNetEvent('td_tracker:client:spawnNPC', function()
+    SpawnMissionGiver()
+    lib.notify({
+        title = 'TD Tracker',
+        description = 'Zleceniodawca zespawnowany! Szukaj go w okolicy',
+        type = 'success'
+    })
 end)
 
 print('^2[TRACKER CLIENT]^0 Main loaded with all stages')

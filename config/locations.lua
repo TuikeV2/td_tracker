@@ -3,7 +3,7 @@ ConfigLocations = {}
 -- NPC Spawns
 ConfigLocations.NPCSpawns = {
     {
-        coords = vector3(707.95, -966.32, 30.41),
+        coords = vector3(266.9616, -1351.9156, 31.9351),
         heading = 90.0,
         model = 'a_m_m_business_01',
         anim = {dict = 'amb@world_human_smoking@male@male_a@idle_a', name = 'idle_a'}
@@ -28,7 +28,6 @@ ConfigLocations.Stage1 = {
 -- STAGE 2: Transport (UPEWNIJ SIĘ ŻE TO JEST!)
 ConfigLocations.Stage2 = {
     vehicleSpawns = {
-<<<<<<< HEAD
         vector4(1409.4042, 3619.8838, 34.8943, 291.8324),
         vector4(1750.4076, 3715.4587, 34.1005, 18.5932),
         vector4(-103.3659, 6534.1694, 29.8092, 43.6376),
@@ -40,19 +39,6 @@ ConfigLocations.Stage2 = {
         vector3(2807.9690, -709.0909, 2.7066),
         vector3(-96.0157, -2767.0366, 6.1156),
         vector3(1234.9996, -3203.9021, 5.5853)
-=======
-        vector4(2340.0, 3054.0, 48.0, 90.0),
-        vector4(1737.0, 3710.0, 34.0, 180.0),
-        vector4(-106.0, 6528.0, 30.0, 270.0),
-        vector4(1392.0, 3608.0, 38.0, 200.0),
-        vector4(-1153.0, -1425.0, 4.0, 120.0)
-    },
-    hideouts = {
-        vector3(2522.0, 4100.0, 38.0),
-        vector3(1737.0, 3710.0, 34.0),
-        vector3(-106.0, 6528.0, 30.0),
-        vector3(1392.0, 3608.0, 38.0)
->>>>>>> 3f40447af142f4db5cc26f5c568cbf4aff9aa968
     },
     vehicles = {'baller', 'dubsta', 'cavalcade', 'patriot', 'granger'}
 }

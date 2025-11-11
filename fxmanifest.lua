@@ -16,13 +16,15 @@ client_scripts {
     'client/main.lua',
     'client/npc.lua',
     'client/blips.lua',
-    'client/ui.lua'
+    'client/ui.lua',
+    'client/police.lua'
 }
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server/reputation.lua',
     'server/logs.lua',
+    'server/police.lua',
     'server/main.lua',
     'server/commands.lua'
 }

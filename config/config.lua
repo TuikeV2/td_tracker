@@ -3,11 +3,7 @@ Config = {}
 Config.Framework = 'esx'
 Config.DispatchSystem = 'cd_dispatch'
 
-<<<<<<< HEAD
 Config.EnableAntiCheat = false
-=======
-Config.EnableAntiCheat = true
->>>>>>> 3f40447af142f4db5cc26f5c568cbf4aff9aa968
 Config.MaxDistanceFromVehicle = 150.0
 Config.MaxDistanceFromNPC = 10.0
 Config.CheckInterval = 5000
@@ -39,8 +35,20 @@ Config.MissionTimeLimit = {
 Config.AdminGroups = {'admin', 'superadmin', 'owner'}
 Config.PoliceJobs = {'police', 'sheriff', 'lspd'}
 
-Config.Stages = {
-    [1] = {enabled = true, minReputation = 0},
-    [2] = {enabled = true, minReputation = 100},
-    [3] = {enabled = true, minReputation = 500}
+Config.Police = {
+    dispatchEnabled = true,
+    policeJobs = {'police', 'sheriff', 'lspd'},
+    dispatchCode = '10-35',
+    dispatchMessage = {
+        stage1 = 'Kradzież pojazdu w toku',
+        stage2 = 'Transport skradzionego pojazdu',
+        stage3 = 'Rozbiórka nielegalnego pojazdu'
+    }
 }
+
+Config.Stages = {
+    [1] = {name = "Kradzież", minReputation = 0, chanceToAorB = 20, enabled = true},
+    [2] = {name = "Transport", minReputation = 50, chanceToAorB = 40, enabled = true},
+    [3] = {name = "Rozbiórka", minReputation = 100, chanceToAorB = 70, enabled = true},
+}
+-- ... inne konfiguracje

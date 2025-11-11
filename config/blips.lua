@@ -2,8 +2,9 @@ ConfigBlips = {}
 
 ConfigBlips.SearchArea = {
     sprite = 9,
-    color = 2,
+    color = 1,
     scale = 1.0,
+    alpha = 128,
     name = 'Obszar poszukiwań'
 }
 

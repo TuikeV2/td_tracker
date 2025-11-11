@@ -16,7 +16,7 @@ ConfigTexts.Dialogs = {
     },
     policeWarning = {
         title = 'Zleceniodawca',
-        description = 'Spadaj glino!',
+        description = 'Spadaj glino, lepiej idź wystawiać mandaty za złe parkowanie!',
         icon = 'fa-solid fa-shield',
         iconColor = '#FF0000'
     },

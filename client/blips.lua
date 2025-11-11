@@ -1,29 +1,29 @@
 local activeBlips = {}
 
 function CreateSearchAreaBlip(center, radius)
-    if not center then 
+    if not center then
         print('^1[TRACKER CLIENT ERROR]^0 CreateSearchAreaBlip: center is nil')
         return nil
     end
-    
+
     local area = AddBlipForRadius(center.x, center.y, center.z, radius)
-    SetBlipHighDetail(area, true)
     SetBlipColour(area, ConfigBlips.SearchArea.color)
-    SetBlipAlpha(area, ConfigBlips.SearchArea.alpha)
-    
+    SetBlipAlpha(area, ConfigBlips.SearchArea.alpha or 128)
+
     local marker = AddBlipForCoord(center.x, center.y, center.z)
     SetBlipSprite(marker, ConfigBlips.SearchArea.sprite)
     SetBlipScale(marker, ConfigBlips.SearchArea.scale)
     SetBlipColour(marker, ConfigBlips.SearchArea.color)
+    SetBlipAsShortRange(marker, false)
     BeginTextCommandSetBlipName('STRING')
     AddTextComponentString(ConfigBlips.SearchArea.name)
     EndTextCommandSetBlipName(marker)
-    
+
     table.insert(activeBlips, area)
     table.insert(activeBlips, marker)
-    
-    print('^2[TRACKER CLIENT]^0 Search area blip created')
-    
+
+    print('^2[TRACKER CLIENT]^0 Search area blip created (red, alpha:', ConfigBlips.SearchArea.alpha or 128, ')')
+
     return {area = area, marker = marker}
 end
 
