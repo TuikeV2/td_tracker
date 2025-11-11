@@ -23,7 +23,6 @@ server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server/reputation.lua',
     'server/logs.lua',
-    'server/stages/*.lua',
     'server/main.lua',
     'server/commands.lua'
 }
