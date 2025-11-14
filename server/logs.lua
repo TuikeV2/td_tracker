@@ -10,24 +10,22 @@ print('^2[TD TRACKER]^0 Loading logs.lua...')
 -- ============================================
 
 local DiscordWebhooks = {
-    -- WŁĄCZ/WYŁĄCZ DISCORD LOGI
-    enabled = true,
+    enabled = false, -- Zmieniono na false - ustaw na true i dodaj webhooki aby włączyć
 
-    -- WEBHOOKS - WKLEJ SWOJE LINKI TUTAJ
     webhooks = {
-        missions = '',  -- Webhook dla misji (start, sukces, porażka)
+        missions = '', -- Webhook dla misji (start, sukces, porażka)
         reputation = '', -- Webhook dla zmian reputacji
-        admin = '',     -- Webhook dla akcji adminów
-        errors = ''     -- Webhook dla błędów systemu
+        admin = '', -- Webhook dla akcji adminów
+        errors = '' -- Webhook dla błędów systemu
     },
 
     -- KOLORY EMBEDÓW
     colors = {
-        success = 65280,    -- Zielony
-        error = 16711680,   -- Czerwony
+        success = 65280, -- Zielony
+        error = 16711680, -- Czerwony
         warning = 16776960, -- Żółty
-        info = 3447003,     -- Niebieski
-        admin = 10181046    -- Fioletowy
+        info = 3447003, -- Niebieski
+        admin = 10181046 -- Fioletowy
     }
 }
 
@@ -74,7 +72,7 @@ end
 ---@return boolean hasCooldown
 function IsOnCooldown(identifier)
     if not identifier then
-        print('^1[TRACKER COOLDOWN ERROR]^0 Invalid identifier!')
+        if Config.Debug then print('^1[TRACKER COOLDOWN ERROR]^0 Invalid identifier!') end -- POPRAWIONE
         return false
     end
 
@@ -129,13 +127,13 @@ end
 ---@param identifier string
 function SetCooldown(identifier)
     if not identifier then
-        print('^1[TRACKER COOLDOWN ERROR]^0 Invalid identifier for cooldown!')
+        if Config.Debug then print('^1[TRACKER COOLDOWN ERROR]^0 Invalid identifier for cooldown!') end -- POPRAWIONE
         return
     end
 
     -- Jeśli cooldown jest wyłączony
     if Config.PersonalCooldownTime == 0 then
-        print('^3[TRACKER COOLDOWN]^0 Cooldown disabled in config')
+        if Config.Debug then print('^3[TRACKER COOLDOWN]^0 Cooldown disabled in config') end -- POPRAWIONE
         return
     end
 
@@ -422,7 +420,7 @@ end)
 ---@param webhookType string missions/reputation/admin/errors
 function TestDiscordWebhook(webhookType)
     if not DiscordWebhooks.enabled then
-        print('^1[TRACKER DISCORD]^0 Discord webhooks are disabled!')
+        if Config.Debug then print('^1[TRACKER DISCORD]^0 Discord webhooks are disabled!') end -- POPRAWIONE
         return
     end
 

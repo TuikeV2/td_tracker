@@ -1,9 +1,13 @@
--- [[ TD Tracker - Server Main ]] --
-
 local ESX = exports['es_extended']:getSharedObject()
-_G.activeMissions = {} -- Globalna zmienna
+_G.activeMissions = {}
 
-print('^2[TRACKER]^0 Main server loaded')
+local function DebugPrint(msg)
+    if Config.Debug then
+        print(msg)
+    end
+end
+
+if Config.Debug then print('^2[TRACKER]^0 Main server loaded') end -- POPRAWKA: Dodano 'end'
 
 -- ============================================
 -- FUNKCJE GENEROWANIA MISJI
@@ -12,17 +16,18 @@ print('^2[TRACKER]^0 Main server loaded')
 function GeneratePlate()
     local letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     local plate = ''
-    
+
     for i = 1, 3 do
-        plate = plate .. letters:sub(math.random(1, #letters), math.random(1, #letters))
+        local idx = math.random(1, #letters)
+        plate = plate .. letters:sub(idx, idx)
     end
-    
+
     plate = plate .. ' '
-    
+
     for i = 1, 4 do
         plate = plate .. math.random(0, 9)
     end
-    
+
     return plate
 end
 
@@ -56,26 +61,30 @@ function GenerateSimilarPlates(orig, count)
 end
 
 function GenerateStage1Data()
-    print('^3[TRACKER DEBUG]^0 Generating Stage 1 data...')
-    
-    if not ConfigLocations or not ConfigLocations.Stage1 then
-        print('^1[TRACKER ERROR]^0 ConfigLocations.Stage1 not found!')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Generating Stage 1 data...') end
+
+    -- Pobierz obszary wyszukiwania z bazy danych
+    local searchAreas = exports.td_tracker:GetSearchAreas()
+    if not searchAreas or #searchAreas == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No search areas configured in database!') end
         return nil
     end
-    
-    if not ConfigLocations.Stage1.searchAreas or #ConfigLocations.Stage1.searchAreas == 0 then
-        print('^1[TRACKER ERROR]^0 No search areas configured!')
+
+    -- Pobierz pulę pojazdów z bazy danych (tier C dla Stage 1)
+    local vehiclePool = exports.td_tracker:GetVehiclePool(1, 'C')
+    if not vehiclePool or #vehiclePool == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No vehicles configured for Stage 1!') end
         return nil
     end
-    
-    local area = ConfigLocations.Stage1.searchAreas[math.random(#ConfigLocations.Stage1.searchAreas)]
+
+    local area = searchAreas[math.random(#searchAreas)]
     local plate = GeneratePlate()
     local plates = GenerateSimilarPlates(plate, 5) -- 5 pojazdów jak w README
-    local model = ConfigLocations.Stage1.vehicles[math.random(#ConfigLocations.Stage1.vehicles)]
-    
-    print('^3[TRACKER DEBUG]^0 Target plate:', plate)
-    print('^3[TRACKER DEBUG]^0 Vehicle model:', model)
-    
+    local model = vehiclePool[math.random(#vehiclePool)].model
+
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Target plate:', plate) end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Vehicle model:', model) end
+
     local vehicles = {}
     for i, p in ipairs(plates) do
         local offset = vector3(math.random(-100, 100), math.random(-100, 100), 0)
@@ -86,9 +95,9 @@ function GenerateStage1Data()
             coords = vector4(spawn.x, spawn.y, spawn.z, math.random(0, 360))
         })
     end
-    
-    print('^2[TRACKER DEBUG]^0 Stage 1 data generated with', #vehicles, 'vehicles')
-    
+
+    if Config.Debug then print('^2[TRACKER DEBUG]^0 Stage 1 data generated with', #vehicles, 'vehicles') end
+
     return {
         plate = plate,
         searchArea = area,
@@ -97,110 +106,135 @@ function GenerateStage1Data()
 end
 
 function GenerateStage2Data()
-    print('^3[TRACKER DEBUG]^0 ========== GENERATE STAGE 2 ==========')
-    print('^3[TRACKER DEBUG]^0 ConfigLocations exists:', ConfigLocations ~= nil)
-    print('^3[TRACKER DEBUG]^0 ConfigLocations.Stage2 exists:', ConfigLocations and ConfigLocations.Stage2 ~= nil)
-    
-    if ConfigLocations and ConfigLocations.Stage2 then
-        print('^3[TRACKER DEBUG]^0 vehicleSpawns count:', ConfigLocations.Stage2.vehicleSpawns and #ConfigLocations.Stage2.vehicleSpawns or 0)
-        print('^3[TRACKER DEBUG]^0 hideouts count:', ConfigLocations.Stage2.hideouts and #ConfigLocations.Stage2.hideouts or 0)
-        print('^3[TRACKER DEBUG]^0 vehicles count:', ConfigLocations.Stage2.vehicles and #ConfigLocations.Stage2.vehicles or 0)
-    end
-    
-    print('^3[TRACKER DEBUG]^0 Generating Stage 2 data...')
-    
-    if not ConfigLocations or not ConfigLocations.Stage2 then
-        print('^1[TRACKER ERROR]^0 ConfigLocations.Stage2 not found!')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 ========== GENERATE STAGE 2 ==========') end
+
+    -- Pobierz lokacje NPC z bazy danych
+    local npcLocations = exports.td_tracker:GetNPCLocations('stage2_npc')
+    if not npcLocations or #npcLocations == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No NPC locations configured for Stage 2!') end
         return nil
     end
-    
-    if not ConfigLocations.Stage2.vehicleSpawns or #ConfigLocations.Stage2.vehicleSpawns == 0 then
-        print('^1[TRACKER ERROR]^0 No vehicle spawns configured!')
+
+    -- Pobierz lokacje pojazdów z bazy danych
+    local vehicleLocations = exports.td_tracker:GetVehicleLocations(2, 'spawn')
+    if not vehicleLocations or #vehicleLocations == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No vehicle spawn locations configured for Stage 2!') end
         return nil
     end
-    
-    if not ConfigLocations.Stage2.hideouts or #ConfigLocations.Stage2.hideouts == 0 then
-        print('^1[TRACKER ERROR]^0 No hideouts configured!')
+
+    -- Pobierz kryjówki z bazy danych
+    local hideouts = exports.td_tracker:GetVehicleLocations(2, 'hideout')
+    if not hideouts or #hideouts == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No hideouts configured for Stage 2!') end
         return nil
     end
-    
-    local spawn = ConfigLocations.Stage2.vehicleSpawns[math.random(#ConfigLocations.Stage2.vehicleSpawns)]
-    local hideout = ConfigLocations.Stage2.hideouts[math.random(#ConfigLocations.Stage2.hideouts)]
-    local model = ConfigLocations.Stage2.vehicles[math.random(#ConfigLocations.Stage2.vehicles)]
-    
-    -- Upewnij się że spawn jest vector4
-    if type(spawn) ~= "vector4" then
-        print('^1[TRACKER ERROR]^0 Spawn point is not vector4!')
+
+    -- Pobierz pulę pojazdów z bazy danych
+    local vehiclePool = exports.td_tracker:GetVehiclePool(2, 'B')
+    if not vehiclePool or #vehiclePool == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No vehicles configured for Stage 2!') end
         return nil
     end
-    
-    print('^2[TRACKER DEBUG]^0 Stage 2 data generated')
-    print('^3[TRACKER DEBUG]^0 Spawn:', spawn)
-    print('^3[TRACKER DEBUG]^0 Hideout:', hideout)
-    
+
+    local npcLoc = npcLocations[math.random(#npcLocations)]
+    local vehLoc = vehicleLocations[math.random(#vehicleLocations)]
+    local hideout = hideouts[math.random(#hideouts)]
+    local model = vehiclePool[math.random(#vehiclePool)].model
+
+    if Config.Debug then print('^2[TRACKER DEBUG]^0 Stage 2 data generated') end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 NPC:', npcLoc.coords) end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Vehicle:', vector4(vehLoc.x, vehLoc.y, vehLoc.z, vehLoc.w)) end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Hideout:', vector3(hideout.x, hideout.y, hideout.z)) end
+
     return {
-        spawnPoint = spawn,
-        hideout = hideout,
+        npcSpawn = vector4(npcLoc.coords.x, npcLoc.coords.y, npcLoc.coords.z, npcLoc.heading),
+        spawnPoint = vector4(vehLoc.x, vehLoc.y, vehLoc.z, vehLoc.w),
+        hideout = vector3(hideout.x, hideout.y, hideout.z),
         vehicleModel = model
     }
 end
 
 function GenerateStage3Data()
-    print('^3[TRACKER DEBUG]^0 ========== GENERATE STAGE 3 ==========')
-    print('^3[TRACKER DEBUG]^0 ConfigLocations exists:', ConfigLocations ~= nil)
-    print('^3[TRACKER DEBUG]^0 ConfigLocations.Stage3 exists:', ConfigLocations and ConfigLocations.Stage3 ~= nil)
-    
-    if ConfigLocations and ConfigLocations.Stage3 then
-        print('^3[TRACKER DEBUG]^0 vehicleSpawns count:', ConfigLocations.Stage3.vehicleSpawns and #ConfigLocations.Stage3.vehicleSpawns or 0)
-        print('^3[TRACKER DEBUG]^0 hideouts count:', ConfigLocations.Stage3.hideouts and #ConfigLocations.Stage3.hideouts or 0)
-        print('^3[TRACKER DEBUG]^0 vehicles count:', ConfigLocations.Stage3.vehicles and #ConfigLocations.Stage3.vehicles or 0)
-    end
-    
-    print('^3[TRACKER DEBUG]^0 Generating Stage 3 data...')
-    
-    if not ConfigLocations or not ConfigLocations.Stage3 then
-        print('^1[TRACKER ERROR]^0 ConfigLocations.Stage3 not found!')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 ========== GENERATE STAGE 3 ==========') end
+
+    -- Pobierz lokacje NPC z bazy danych
+    local npcLocations = exports.td_tracker:GetNPCLocations('stage3_npc')
+    if not npcLocations or #npcLocations == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No NPC locations configured for Stage 3!') end
         return nil
     end
-    
-    if not ConfigLocations.Stage3.dismantleLocations or #ConfigLocations.Stage3.dismantleLocations == 0 then
-        print('^1[TRACKER ERROR]^0 No dismantle locations configured!')
+
+    -- Pobierz lokacje pojazdów do rozbiórki z bazy danych
+    local vehicleLocations = exports.td_tracker:GetVehicleLocations(3, 'spawn')
+    if not vehicleLocations or #vehicleLocations == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No vehicle spawn locations configured for Stage 3!') end
         return nil
     end
-    
-    local loc = ConfigLocations.Stage3.dismantleLocations[math.random(#ConfigLocations.Stage3.dismantleLocations)]
-    local model = ConfigLocations.Stage3.vehicles[math.random(#ConfigLocations.Stage3.vehicles)]
-    
-    print('^2[TRACKER DEBUG]^0 Stage 3 data generated')
-    
+
+    -- Pobierz lokacje busów z bazy danych
+    local busLocations = exports.td_tracker:GetVehicleLocations(3, 'bus_spawn')
+    if not busLocations or #busLocations == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No bus spawn locations configured for Stage 3!') end
+        return nil
+    end
+
+    -- Pobierz punkty sprzedaży z bazy danych
+    local sellPoints = exports.td_tracker:GetVehicleLocations(3, 'sell_point')
+    if not sellPoints or #sellPoints == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No sell points configured for Stage 3!') end
+        return nil
+    end
+
+    -- Pobierz pulę pojazdów z bazy danych
+    local vehiclePool = exports.td_tracker:GetVehiclePool(3, 'A')
+    if not vehiclePool or #vehiclePool == 0 then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No vehicles configured for Stage 3!') end
+        return nil
+    end
+
+    local npcLoc = npcLocations[math.random(#npcLocations)]
+    local vehLoc = vehicleLocations[math.random(#vehicleLocations)]
+    local busLoc = busLocations[math.random(#busLocations)]
+    local sellPoint = sellPoints[math.random(#sellPoints)]
+    local model = vehiclePool[math.random(#vehiclePool)].model
+
+    if Config.Debug then print('^2[TRACKER DEBUG]^0 Stage 3 data generated') end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 NPC:', npcLoc.coords) end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Vehicle:', vector4(vehLoc.x, vehLoc.y, vehLoc.z, vehLoc.w)) end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Bus:', vector4(busLoc.x, busLoc.y, busLoc.z, busLoc.w)) end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Sell point:', vector3(sellPoint.x, sellPoint.y, sellPoint.z)) end
+
     return {
-        location = loc,
+        npcSpawn = vector4(npcLoc.coords.x, npcLoc.coords.y, npcLoc.coords.z, npcLoc.heading),
+        vehicleSpawn = vector4(vehLoc.x, vehLoc.y, vehLoc.z, vehLoc.w),
+        busSpawn = vector4(busLoc.x, busLoc.y, busLoc.z, busLoc.w),
+        sellPoint = vector3(sellPoint.x, sellPoint.y, sellPoint.z),
         vehicleModel = model
     }
 end
 
 function GenerateMissionData(stage)
-    print('^3[TRACKER DEBUG]^0 === GenerateMissionData called ===')
-    print('^3[TRACKER DEBUG]^0 Stage:', stage)
-    print('^3[TRACKER DEBUG]^0 Stage type:', type(stage))
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 === GenerateMissionData called ===') end -- POPRAWIONE
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Stage:', stage) end -- POPRAWIONE
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Stage type:', type(stage)) end -- POPRAWIONE
     
     if stage == 1 then
-        print('^3[TRACKER DEBUG]^0 Calling GenerateStage1Data...')
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Calling GenerateStage1Data...') end -- POPRAWIONE
         return GenerateStage1Data()
     elseif stage == 2 then
-        print('^3[TRACKER DEBUG]^0 Calling GenerateStage2Data...')
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Calling GenerateStage2Data...') end -- POPRAWIONE
         local result = GenerateStage2Data()
-        print('^3[TRACKER DEBUG]^0 GenerateStage2Data returned:', result ~= nil)
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 GenerateStage2Data returned:', result ~= nil) end -- POPRAWIONE
         if result then
-            print('^3[TRACKER DEBUG]^0 Stage2 result:', json.encode(result))
+            if Config.Debug then print('^3[TRACKER DEBUG]^0 Stage2 result:', json.encode(result)) end -- POPRAWIONE
         end
         return result
     elseif stage == 3 then
-        print('^3[TRACKER DEBUG]^0 Calling GenerateStage3Data...')
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Calling GenerateStage3Data...') end -- POPRAWIONE
         return GenerateStage3Data()
     end
     
-    print('^1[TRACKER ERROR]^0 Invalid stage:', stage)
+    if Config.Debug then print('^1[TRACKER ERROR]^0 Invalid stage:', stage) end -- POPRAWIONE
     return nil
 end
 
@@ -322,24 +356,28 @@ end)
 -- ============================================
 
 function StartMissionForPlayer(src, stage)
-    print('^3[TRACKER DEBUG]^0 ========== START MISSION ==========')
-    print('^3[TRACKER DEBUG]^0 Player:', src, 'Stage:', stage)
+    -- DEBUG PRINTS (ZAMYKANE NATYCHMIAST)
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 ========== START MISSION ==========') end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Player:', src, 'Stage:', stage) end
     
+    -- [STEP 1] WALIDACJA SOURCE
     if not src or src == 0 then
-        print('^1[TRACKER ERROR]^0 Invalid player source')
+        if Config.Debug then print('^1[TRACKER ERROR]^0 Invalid player source') end
         return false
     end
-    print('^3[TRACKER DEBUG]^0 [STEP 1] Source valid')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 1] Source valid') end
     
+    -- [STEP 2] POBRANIE GRACZA
     local xPlayer = ESX.GetPlayerFromId(src)
     if not xPlayer then 
-        print('^1[TRACKER DEBUG]^0 xPlayer not found')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 xPlayer not found') end
         return false
     end
-    print('^3[TRACKER DEBUG]^0 [STEP 2] xPlayer found:', xPlayer.identifier)
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 2] xPlayer found:', xPlayer.identifier) end
     
+    -- [STEP 3] AKTYWNA MISJA
     if activeMissions[src] then
-        print('^1[TRACKER DEBUG]^0 Player has active mission')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 Player has active mission') end
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Błąd',
             description = 'Masz aktywną misję',
@@ -347,10 +385,11 @@ function StartMissionForPlayer(src, stage)
         })
         return false
     end
-    print('^3[TRACKER DEBUG]^0 [STEP 3] No active mission')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 3] No active mission') end
     
+    -- [STEP 4] COOLDOWN
     if IsOnCooldown(xPlayer.identifier) then
-        print('^1[TRACKER DEBUG]^0 Player on cooldown')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 Player on cooldown') end
         local time = GetCooldownTime(xPlayer.identifier)
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Cooldown',
@@ -359,27 +398,29 @@ function StartMissionForPlayer(src, stage)
         })
         return false
     end
-    print('^3[TRACKER DEBUG]^0 [STEP 4] Cooldown OK')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 4] Cooldown OK') end
     
+    -- [STEP 5-7] REPUTACJA
     local rep = GetReputation(xPlayer.identifier)
-    print('^3[TRACKER DEBUG]^0 [STEP 5] Rep retrieved:', rep)
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 5] Rep retrieved:', rep) end
     
     local req = Config.Stages[stage].minReputation
-    print('^3[TRACKER DEBUG]^0 [STEP 6] Required rep:', req)
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 6] Required rep:', req) end
     
     if rep < req then
-        print('^1[TRACKER DEBUG]^0 Insufficient reputation')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 Insufficient reputation') end
         TriggerClientEvent('td_tracker:client:insufficientRep', src, req, rep)
         return false
     end
-    print('^3[TRACKER DEBUG]^0 [STEP 7] Rep check passed')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 7] Rep check passed') end
     
-    print('^3[TRACKER DEBUG]^0 [STEP 8] Calling GenerateMissionData...')
+    -- [STEP 8-10] GENEROWANIE DANYCH
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 8] Calling GenerateMissionData...') end
     local data = GenerateMissionData(stage)
-    print('^3[TRACKER DEBUG]^0 [STEP 9] Data returned:', data ~= nil)
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 9] Data returned:', data ~= nil) end
     
     if not data then
-        print('^1[TRACKER ERROR]^0 Failed to generate mission data')
+        if Config.Debug then print('^1[TRACKER ERROR]^0 Failed to generate mission data') end
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Błąd',
             description = 'Nie udało się wygenerować misji',
@@ -387,52 +428,55 @@ function StartMissionForPlayer(src, stage)
         })
         return false
     end
-    print('^3[TRACKER DEBUG]^0 [STEP 10] Data generated successfully')
-    print('^3[TRACKER DEBUG]^0 [STEP 10a] Data content:', json.encode(data))
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 10] Data generated successfully') end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 10a] Data content:', json.encode(data)) end
     
+    -- [STEP 11] UTWORZENIE AKTYWNEJ MISJI
     activeMissions[src] = {
         type = stage,
         data = data,
         startTime = os.time(),
         identifier = xPlayer.identifier
     }
-    print('^3[TRACKER DEBUG]^0 [STEP 11] Mission added to activeMissions')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 11] Mission added to activeMissions') end
     
+    -- [STEP 12-13] PRZYGOTOWANIE DANYCH DLA KLIENTA
     local clientData = {
         type = stage,
         active = true
     }
-    print('^3[TRACKER DEBUG]^0 [STEP 12] ClientData initialized')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 12] ClientData initialized') end
     
     if stage == 1 then
         clientData.plate = data.plate
         clientData.searchArea = data.searchArea
         clientData.vehicles = data.vehicles
-        print('^3[TRACKER DEBUG]^0 [STEP 13] Stage 1 data added')
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 13] Stage 1 data added') end
     elseif stage == 2 then
-        print('^3[TRACKER DEBUG]^0 [STEP 13] Adding Stage 2 data...')
-        print('^3[TRACKER DEBUG]^0 data.spawnPoint:', data.spawnPoint)
-        print('^3[TRACKER DEBUG]^0 data.hideout:', data.hideout)
-        print('^3[TRACKER DEBUG]^0 data.vehicleModel:', data.vehicleModel)
-        
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 13] Adding Stage 2 data...') end
+        clientData.npcSpawn = data.npcSpawn
         clientData.spawnPoint = data.spawnPoint
         clientData.hideout = data.hideout
         clientData.vehicleModel = data.vehicleModel
-        
-        print('^3[TRACKER DEBUG]^0 [STEP 13a] Stage 2 data added')
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 13a] Stage 2 data added') end
     elseif stage == 3 then
-        clientData.location = data.location
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 13] Adding Stage 3 data...') end
+        clientData.npcSpawn = data.npcSpawn
+        clientData.vehicleSpawn = data.vehicleSpawn
+        clientData.busSpawn = data.busSpawn
+        clientData.sellPoint = data.sellPoint
         clientData.vehicleModel = data.vehicleModel
-        print('^3[TRACKER DEBUG]^0 [STEP 13] Stage 3 data added')
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 13] Stage 3 data added') end
     end
     
-    print('^3[TRACKER DEBUG]^0 [STEP 14] Preparing to send to client')
-    print('^3[TRACKER DEBUG]^0 [STEP 14a] Final clientData:', json.encode(clientData))
+    -- [STEP 14-16] WYSŁANIE DO KLIENTA I ZAKOŃCZENIE
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 14] Preparing to send to client') end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 14a] Final clientData:', json.encode(clientData)) end
     
-    print('^3[TRACKER DEBUG]^0 [STEP 15] Triggering client event...')
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 [STEP 15] Triggering client event...') end
     TriggerClientEvent('td_tracker:client:startMission', src, clientData)
     
-    print('^2[TRACKER DEBUG]^0 [STEP 16] Mission started successfully')
+    if Config.Debug then print('^2[TRACKER DEBUG]^0 [STEP 16] Mission started successfully') end
     
     LogAction(xPlayer.identifier, 'mission_start', {stage = stage})
     return true
@@ -460,26 +504,28 @@ end)
 
 RegisterNetEvent('td_tracker:server:requestDialog', function()
     local src = source
-    print('^3[TRACKER DEBUG]^0 Dialog requested by:', src)
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Dialog requested by:', src) end
     
     local xPlayer = ESX.GetPlayerFromId(src)
     if not xPlayer then 
-        print('^1[TRACKER DEBUG]^0 xPlayer not found')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 xPlayer not found') end
         return 
     end
     
     local rep = GetReputation(xPlayer.identifier)
     local stages = GetAvailableStages(rep)
     
-    print('^3[TRACKER DEBUG]^0 Rep:', rep, 'Stages:', json.encode(stages))
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Rep:', rep, 'Stages:', json.encode(stages)) end
     
     TriggerClientEvent('td_tracker:client:showDialog', src, rep, stages)
 end)
 
 RegisterNetEvent('td_tracker:server:startMission', function(stage)
     local src = source
-    print('^3[TRACKER DEBUG]^0 Event startMission - Stage:', stage, 'Player:', src)
-    StartMissionForPlayer(src, stage)
+    if Config.Debug then -- POPRAWIONE
+        print('^3[TRACKER DEBUG]^0 Event startMission - Stage:', stage, 'Player:', src)
+    end -- POPRAWIONE
+    StartMissionForPlayer(src, stage) -- Upewnienie się, że funkcja jest wywoływana zawsze
 end)
 
 RegisterNetEvent('td_tracker:server:completeMission', function(type, timeTaken, timeLimit)
@@ -491,28 +537,39 @@ RegisterNetEvent('td_tracker:server:completeMission', function(type, timeTaken, 
     if not mission or mission.type ~= type then return end
     
     local rep = GetReputation(xPlayer.identifier)
-    local reward = ConfigRewards.Calculate(type, rep, timeTaken, timeLimit)
-    
-    if reward then
-        xPlayer.addMoney(reward.money)
-        xPlayer.addAccountMoney('black_money', reward.blackMoney)
-        
-        for _, item in ipairs(reward.items) do
-            xPlayer.addInventoryItem(item.name, item.count)
-        end
-        
-        AddReputation(xPlayer.identifier, reward.reputation)
-        SaveMission(xPlayer.identifier, type, 'completed', reward.reputation, reward.money, reward.blackMoney, timeTaken / 1000)
-        
-        TriggerClientEvent('ox_lib:notify', src, {
-            title = ConfigTexts.Notifications.missionComplete.title,
-            description = string.format(ConfigTexts.Notifications.missionComplete.description, reward.money, reward.blackMoney, reward.reputation),
-            type = 'success'
-        })
-        
-        SetCooldown(xPlayer.identifier)
-        LogAction(xPlayer.identifier, 'mission_complete', {stage = type, reward = reward})
+
+    -- Pobierz nagrody z bazy danych
+    local rewardConfig = exports.td_tracker:GetReward(type, 'B') -- Domyślnie tier B
+    if not rewardConfig then
+        if Config.Debug then print('^1[TRACKER ERROR]^0 No reward configuration found for stage', type) end
+        return
     end
+
+    -- Oblicz nagrody
+    local money = math.random(rewardConfig.minMoney, rewardConfig.maxMoney)
+    local reputation = math.random(rewardConfig.minReputation, rewardConfig.maxReputation)
+
+    -- Bonus za szybkie ukończenie (50% czasu)
+    local speedBonus = GetSetting('speed_bonus_enabled', true)
+    if speedBonus and timeTaken <= (timeLimit * 0.5) then
+        money = money + math.random(1000, 3000)
+        reputation = reputation + math.random(5, 15)
+    end
+
+    -- Wypłać nagrody
+    xPlayer.addMoney(money)
+
+    AddReputation(xPlayer.identifier, reputation)
+    SaveMission(xPlayer.identifier, type, 'completed', reputation, money, 0, timeTaken / 1000)
+        
+    TriggerClientEvent('ox_lib:notify', src, {
+        title = ConfigTexts.Notifications.missionComplete.title,
+        description = string.format(ConfigTexts.Notifications.missionComplete.description, money, 0, reputation),
+        type = 'success'
+    })
+
+    SetCooldown(xPlayer.identifier)
+    LogAction(xPlayer.identifier, 'mission_complete', {stage = type, money = money, reputation = reputation})
     
     activeMissions[src] = nil
 end)
@@ -525,7 +582,8 @@ RegisterNetEvent('td_tracker:server:failMission', function(type, reason)
     local mission = activeMissions[src]
     if not mission then return end
     
-    local penalty = ConfigRewards.FailurePenalty[type] or 20
+    -- Pobierz karę z bazy danych
+    local penalty = exports.td_tracker:GetPenalty(type)
     RemoveReputation(xPlayer.identifier, penalty)
     SaveMission(xPlayer.identifier, type, 'failed', -penalty, 0, 0, 0)
     
@@ -542,8 +600,8 @@ RegisterNetEvent('td_tracker:server:vehicleStolen', function(coords, vehicleMode
     local mission = activeMissions[src]
     local stage = mission and mission.type or 1
 
-    -- Wywołaj nową funkcję NotifyPolice z lb_tablet
-    NotifyPolice(coords, stage, vehicleModel)
+    -- Wywołaj nową funkcję NotifyPolice z lb_tablet (przekaż src dla pościgu NPC)
+    NotifyPolice(coords, stage, vehicleModel, src)
 end)
 
 RegisterNetEvent('td_tracker:server:chaseEnded', function()
@@ -596,28 +654,7 @@ function FormatTime(sec)
     return string.format('%02d:%02d', min, s)
 end
 
-function NotifyPolice(coords, msg, src)
-    if Config.DispatchSystem == 'cd_dispatch' then
-        TriggerClientEvent('cd_dispatch:AddNotification', -1, {
-            job_table = {'police'},
-            coords = coords,
-            title = '10-35 - ' .. msg,
-            message = 'Zgłoszenie kradzieży',
-            flash = 0,
-            unique_id = src,
-            blip = {
-                sprite = 229,
-                colour = 1,
-                scale = 1.0,
-                text = msg,
-                time = Config.ChaseTime,
-                radius = Config.ChaseAreaSize
-            }
-        })
-    elseif Config.DispatchSystem == 'ps-dispatch' then
-        exports['ps-dispatch']:VehicleTheft(coords)
-    end
-end
+-- NotifyPolice moved to server/police.lua
 
 function ClearPoliceNotification(src)
     -- Implementacja czyszczenia powiadomienia
@@ -630,6 +667,15 @@ AddEventHandler('playerDropped', function()
         SaveMission(mission.identifier, mission.type, 'abandoned', 0, 0, 0, 0)
         activeMissions[src] = nil
     end
+end)
+
+-- ============================================
+-- CALLBACKS (MYSQL-BASED)
+-- ============================================
+
+ESX.RegisterServerCallback('td_tracker:getNPCLocations', function(source, cb)
+    local npcLocations = exports.td_tracker:GetNPCLocations('quest_giver')
+    cb(npcLocations)
 end)
 
 print('^2[TRACKER]^0 Main server fully loaded')

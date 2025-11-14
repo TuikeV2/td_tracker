@@ -1,10 +1,10 @@
 ConfigTexts = {}
 
 ConfigTexts.Text3D = {
-    npc = '[E] Porozmawiaj',
+    npc = 'Porozmawiaj',
     delivery = 'Dostawa pojazdu',
-    dismantle = '[E] Demontuj %s',
-    loadPart = '[E] Załaduj część'
+    dismantle = 'Demontuj %s',
+    loadPart = 'Załaduj część'
 }
 
 ConfigTexts.Dialogs = {

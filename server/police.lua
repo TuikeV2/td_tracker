@@ -10,9 +10,9 @@ print('^2[TD TRACKER]^0 Police system loaded')
 -- FUNKCJA POWIADAMIANIA POLICJI (LB_TABLET)
 -- ============================================
 
-function NotifyPolice(coords, stage, vehicleModel)
+function NotifyPolice(coords, stage, vehicleModel, targetSource)
     if not Config.Police or not Config.Police.dispatchEnabled then
-        print('^3[TRACKER POLICE]^0 Dispatch disabled in config')
+        if Config.Debug then print('^3[TRACKER POLICE]^0 Dispatch disabled in config') end
         return
     end
 
@@ -39,6 +39,32 @@ function NotifyPolice(coords, stage, vehicleModel)
 
                 print(string.format('^2[TRACKER POLICE]^0 Alert sent to %s (ID: %d)', xTarget.getName(), xTarget.source))
             end
+        end
+    end
+
+    -- Wywołaj pościg NPC jeśli włączony i jest mniej niż wymagana liczba policjantów
+    if Config.NPCChase and Config.NPCChase.enabled and targetSource then
+        -- Policz graczy na służbie policji
+        local policeCount = 0
+        for _, xTarget in pairs(xPlayers) do
+            for _, policeJob in pairs(Config.Police.policeJobs) do
+                if xTarget.job.name == policeJob then
+                    policeCount = policeCount + 1
+                    break
+                end
+            end
+        end
+
+        print(string.format('^3[TRACKER POLICE]^0 Police players online: %d / min required: %d', policeCount, Config.NPCChase.minPolicePlayersForNPCDisable))
+
+        if policeCount < Config.NPCChase.minPolicePlayersForNPCDisable then
+            TriggerClientEvent('td_tracker:startNPCChase', targetSource, {
+                coords = coords,
+                stage = stage
+            })
+            print(string.format('^2[TRACKER POLICE]^0 NPC chase started for player %d', targetSource))
+        else
+            print(string.format('^3[TRACKER POLICE]^0 NPC chase disabled - enough police online (%d)', policeCount))
         end
     end
 end

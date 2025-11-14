@@ -1,28 +1,28 @@
 local ESX = exports['es_extended']:getSharedObject()
 
-print('^2[TRACKER]^0 Commands loaded')
+if Config.Debug then print('^2[TRACKER]^0 Commands loaded') end
 
 function IsAdmin(src)
     local xPlayer = ESX.GetPlayerFromId(src)
-    print('^3[TRACKER DEBUG]^0 IsAdmin check for ID:', src)
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 IsAdmin check for ID:', src) end
     
     if not xPlayer then 
-        print('^1[TRACKER DEBUG]^0 xPlayer not found')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 xPlayer not found') end
         return false 
     end
     
     local playerGroup = xPlayer.getGroup()
-    print('^3[TRACKER DEBUG]^0 Player group:', playerGroup)
-    print('^3[TRACKER DEBUG]^0 Admin groups:', json.encode(Config.AdminGroups))
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Player group:', playerGroup) end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Admin groups:', json.encode(Config.AdminGroups)) end
     
     for _, group in ipairs(Config.AdminGroups) do
         if playerGroup == group then 
-            print('^2[TRACKER DEBUG]^0 Admin access granted')
+            if Config.Debug then print('^2[TRACKER DEBUG]^0 Admin access granted') end
             return true 
         end
     end
     
-    print('^1[TRACKER DEBUG]^0 Admin access denied')
+    if Config.Debug then print('^1[TRACKER DEBUG]^0 Admin access denied') end
     return false
 end
 
@@ -31,16 +31,16 @@ end
 -- ============================================
 
 RegisterCommand('starttracker', function(src, args)
-    print('^3[TRACKER DEBUG]^0 Command /starttracker executed by:', src)
-    print('^3[TRACKER DEBUG]^0 Args:', json.encode(args))
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Command /starttracker executed by:', src) end
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Args:', json.encode(args)) end
     
     if src == 0 then
-        print('^1[TRACKER DEBUG]^0 Command from console - not supported')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 Command from console - not supported') end
         return
     end
     
     if not IsAdmin(src) then 
-        print('^1[TRACKER DEBUG]^0 No admin permission')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 No admin permission') end
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Brak uprawnień',
             description = 'Komenda tylko dla adminów',
@@ -50,10 +50,10 @@ RegisterCommand('starttracker', function(src, args)
     end
     
     local stage = tonumber(args[1])
-    print('^3[TRACKER DEBUG]^0 Stage parsed:', stage)
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Stage parsed:', stage) end
     
     if not stage or stage < 1 or stage > 3 then
-        print('^1[TRACKER DEBUG]^0 Invalid stage')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 Invalid stage') end
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Błąd',
             description = 'Użyj: /starttracker [1-3]',
@@ -62,7 +62,7 @@ RegisterCommand('starttracker', function(src, args)
         return
     end
     
-    print('^2[TRACKER DEBUG]^0 Calling StartMissionForPlayer for stage', stage)
+    if Config.Debug then print('^2[TRACKER DEBUG]^0 Calling StartMissionForPlayer for stage', stage) end
     
     local success = StartMissionForPlayer(src, stage)
     
@@ -73,29 +73,30 @@ RegisterCommand('starttracker', function(src, args)
             type = 'success'
         })
     end
+
 end, false)
 
 RegisterCommand('tracker', function(src, args)
-    print('^3[TRACKER DEBUG]^0 Command /tracker executed by:', src, 'args:', json.encode(args))
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Command /tracker executed by:', src, 'args:', json.encode(args)) end
     
     if src == 0 then
-        print('^1[TRACKER DEBUG]^0 Command from console - not supported')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 Command from console - not supported') end
         return
     end
     
     if not IsAdmin(src) then 
-        print('^1[TRACKER DEBUG]^0 No admin permission for /tracker')
+        if Config.Debug then print('^1[TRACKER DEBUG]^0 No admin permission for /tracker') end
         return 
     end
     
     local action = args[1]
-    print('^3[TRACKER DEBUG]^0 Action:', action)
+    if Config.Debug then print('^3[TRACKER DEBUG]^0 Action:', action) end
     
     if action == 'rep' then
         local target = tonumber(args[2])
         local amount = tonumber(args[3])
         
-        print('^3[TRACKER DEBUG]^0 Rep change - Target:', target, 'Amount:', amount)
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Rep change - Target:', target, 'Amount:', amount) end
         
         if not target or not amount then
             TriggerClientEvent('ox_lib:notify', src, {
@@ -108,7 +109,7 @@ RegisterCommand('tracker', function(src, args)
         
         local xPlayer = ESX.GetPlayerFromId(target)
         if not xPlayer then
-            print('^1[TRACKER DEBUG]^0 Target player offline')
+            if Config.Debug then print('^1[TRACKER DEBUG]^0 Target player offline') end
             TriggerClientEvent('ox_lib:notify', src, {
                 title = 'Błąd',
                 description = 'Gracz offline',
@@ -119,10 +120,10 @@ RegisterCommand('tracker', function(src, args)
         
         if amount > 0 then
             AddReputation(xPlayer.identifier, amount)
-            print('^2[TRACKER DEBUG]^0 Added', amount, 'rep to', xPlayer.identifier)
+            if Config.Debug then print('^2[TRACKER DEBUG]^0 Added', amount, 'rep to', xPlayer.identifier) end
         else
             RemoveReputation(xPlayer.identifier, math.abs(amount))
-            print('^2[TRACKER DEBUG]^0 Removed', math.abs(amount), 'rep from', xPlayer.identifier)
+            if Config.Debug then print('^2[TRACKER DEBUG]^0 Removed', math.abs(amount), 'rep from', xPlayer.identifier) end
         end
         
         TriggerClientEvent('ox_lib:notify', src, {
@@ -134,7 +135,7 @@ RegisterCommand('tracker', function(src, args)
     elseif action == 'stats' then
         local target = tonumber(args[2])
         
-        print('^3[TRACKER DEBUG]^0 Stats check for target:', target)
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Stats check for target:', target) end
         
         if not target then
             TriggerClientEvent('ox_lib:notify', src, {
@@ -147,7 +148,7 @@ RegisterCommand('tracker', function(src, args)
         
         local xPlayer = ESX.GetPlayerFromId(target)
         if not xPlayer then
-            print('^1[TRACKER DEBUG]^0 Target player offline for stats')
+            if Config.Debug then print('^1[TRACKER DEBUG]^0 Target player offline for stats') end
             TriggerClientEvent('ox_lib:notify', src, {
                 title = 'Błąd',
                 description = 'Gracz offline',
@@ -158,7 +159,7 @@ RegisterCommand('tracker', function(src, args)
         
         local stats = MySQL.single.await('SELECT * FROM tracker_reputation WHERE identifier = ?', {xPlayer.identifier})
         
-        print('^3[TRACKER DEBUG]^0 Stats result:', json.encode(stats))
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Stats result:', json.encode(stats)) end
         
         if stats then
             TriggerClientEvent('ox_lib:notify', src, {
@@ -178,7 +179,7 @@ RegisterCommand('tracker', function(src, args)
     elseif action == 'cooldown' then
         local target = tonumber(args[2]) or src
         
-        print('^3[TRACKER DEBUG]^0 Removing cooldown for:', target)
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Removing cooldown for:', target) end
         
         local xPlayer = ESX.GetPlayerFromId(target)
         if not xPlayer then
@@ -192,7 +193,7 @@ RegisterCommand('tracker', function(src, args)
         
         MySQL.query.await('DELETE FROM tracker_cooldowns WHERE identifier = ?', {xPlayer.identifier})
         
-        print('^2[TRACKER DEBUG]^0 Cooldown removed for:', xPlayer.identifier)
+        if Config.Debug then print('^2[TRACKER DEBUG]^0 Cooldown removed for:', xPlayer.identifier) end
         
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Sukces',
@@ -209,11 +210,11 @@ RegisterCommand('tracker', function(src, args)
         end
         
     elseif action == 'clearall' then
-        print('^3[TRACKER DEBUG]^0 Clearing all cooldowns')
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Clearing all cooldowns') end
         
         MySQL.query.await('DELETE FROM tracker_cooldowns')
         
-        print('^2[TRACKER DEBUG]^0 All cooldowns cleared')
+        if Config.Debug then print('^2[TRACKER DEBUG]^0 All cooldowns cleared') end
         
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Sukces',
@@ -222,15 +223,15 @@ RegisterCommand('tracker', function(src, args)
         })
         
     elseif action == 'debug' then
-        print('^3[TRACKER DEBUG]^0 === DEBUG INFO ===')
-        print('^3[TRACKER DEBUG]^0 Active missions:', activeMissions and json.encode(activeMissions) or 'nil')
-        print('^3[TRACKER DEBUG]^0 Player ID:', src)
-        print('^3[TRACKER DEBUG]^0 Is Admin:', IsAdmin(src))
-        print('^3[TRACKER DEBUG]^0 Config loaded:', Config ~= nil)
-        print('^3[TRACKER DEBUG]^0 ConfigLocations loaded:', ConfigLocations ~= nil)
-        print('^3[TRACKER DEBUG]^0 ConfigRewards loaded:', ConfigRewards ~= nil)
-        print('^3[TRACKER DEBUG]^0 ConfigTexts loaded:', ConfigTexts ~= nil)
-        print('^3[TRACKER DEBUG]^0 === END DEBUG ===')
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 === DEBUG INFO ===') end
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Active missions:', activeMissions and json.encode(activeMissions) or 'nil') end
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Player ID:', src) end
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Is Admin:', IsAdmin(src)) end
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Config loaded:', Config ~= nil) end
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 ConfigLocations loaded:', ConfigLocations ~= nil) end
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 ConfigRewards loaded:', ConfigRewards ~= nil) end
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 ConfigTexts loaded:', ConfigTexts ~= nil) end
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 === END DEBUG ===') end
         
         TriggerClientEvent('ox_lib:notify', src, {
             title = 'Debug',
@@ -241,12 +242,12 @@ RegisterCommand('tracker', function(src, args)
     elseif action == 'cancel' then
         local target = tonumber(args[2]) or src
         
-        print('^3[TRACKER DEBUG]^0 Canceling mission for:', target)
+        if Config.Debug then print('^3[TRACKER DEBUG]^0 Canceling mission for:', target) end
         
         if activeMissions and activeMissions[target] then
             TriggerClientEvent('td_tracker:client:cancelMission', target)
             activeMissions[target] = nil
-            print('^2[TRACKER DEBUG]^0 Mission canceled')
+            if Config.Debug then print('^2[TRACKER DEBUG]^0 Mission canceled') end
             
             TriggerClientEvent('ox_lib:notify', src, {
                 title = 'Sukces',
@@ -254,7 +255,7 @@ RegisterCommand('tracker', function(src, args)
                 type = 'success'
             })
         else
-            print('^1[TRACKER DEBUG]^0 No active mission to cancel')
+            if Config.Debug then print('^1[TRACKER DEBUG]^0 No active mission to cancel') end
             
             TriggerClientEvent('ox_lib:notify', src, {
                 title = 'Błąd',
@@ -276,7 +277,7 @@ RegisterCommand('tracker', function(src, args)
             return
         end
 
-        print('^2[TRACKER DEBUG]^0 Starting mission for player', target, 'stage', stage)
+        if Config.Debug then print('^2[TRACKER DEBUG]^0 Starting mission for player', target, 'stage', stage) end
 
         local xPlayer = ESX.GetPlayerFromId(target)
         if xPlayer then
@@ -297,7 +298,7 @@ RegisterCommand('tracker', function(src, args)
         end
 
     elseif action == 'npc' then
-        print('^2[TRACKER DEBUG]^0 Spawning NPC for player', src)
+        if Config.Debug then print('^2[TRACKER DEBUG]^0 Spawning NPC for player', src) end
 
         TriggerClientEvent('td_tracker:client:spawnNPC', src)
 
@@ -317,4 +318,4 @@ RegisterCommand('tracker', function(src, args)
     end
 end, false)
 
-print('^2[TRACKER]^0 Commands registered: /starttracker, /tracker')
+if Config.Debug then print('^2[TRACKER]^0 Commands registered: /starttracker, /tracker') end

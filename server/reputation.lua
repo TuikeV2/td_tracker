@@ -13,7 +13,7 @@ print('^2[TD TRACKER]^0 Loading reputation.lua...')
 ---@return number reputation
 function GetReputation(identifier)
     if not identifier then
-        print('^1[TRACKER REPUTATION ERROR]^0 Invalid identifier!')
+        if Config.Debug then print('^1[TRACKER REPUTATION ERROR]^0 Invalid identifier!') end -- POPRAWIONE
         return 0
     end
 
@@ -39,7 +39,7 @@ end
 ---@param amount number
 function AddReputation(identifier, amount)
     if not identifier or not amount or amount <= 0 then
-        print('^1[TRACKER REPUTATION ERROR]^0 Invalid parameters for AddReputation!')
+        if Config.Debug then print('^1[TRACKER REPUTATION ERROR]^0 Invalid parameters for AddReputation!') end -- POPRAWIONE
         return
     end
 
@@ -80,7 +80,7 @@ end
 ---@param amount number
 function RemoveReputation(identifier, amount)
     if not identifier or not amount or amount <= 0 then
-        print('^1[TRACKER REPUTATION ERROR]^0 Invalid parameters for RemoveReputation!')
+        if Config.Debug then print('^1[TRACKER REPUTATION ERROR]^0 Invalid parameters for RemoveReputation!') end -- POPRAWIONE
         return
     end
 
@@ -126,7 +126,7 @@ end
 ---@param duration number w sekundach
 function SaveMission(identifier, missionType, status, reputationGained, moneyReward, blackMoneyReward, duration)
     if not identifier or not missionType or not status then
-        print('^1[TRACKER REPUTATION ERROR]^0 Invalid parameters for SaveMission!')
+        if Config.Debug then print('^1[TRACKER REPUTATION ERROR]^0 Invalid parameters for SaveMission!') end -- POPRAWIONE
         return
     end
 
@@ -208,7 +208,7 @@ end
 ---@param identifier string
 function ResetReputation(identifier)
     if not identifier then
-        print('^1[TRACKER REPUTATION ERROR]^0 Invalid identifier for reset!')
+        if Config.Debug then print('^1[TRACKER REPUTATION ERROR]^0 Invalid identifier for reset!') end -- POPRAWIONE
         return false
     end
 
@@ -225,7 +225,7 @@ end
 ---@param amount number
 function SetReputation(identifier, amount)
     if not identifier or not amount then
-        print('^1[TRACKER REPUTATION ERROR]^0 Invalid parameters for SetReputation!')
+        if Config.Debug then print('^1[TRACKER REPUTATION ERROR]^0 Invalid parameters for SetReputation!') end
         return false
     end
 

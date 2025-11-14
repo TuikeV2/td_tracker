@@ -9,24 +9,38 @@ version '1.0.0'
 shared_scripts {
     '@es_extended/imports.lua',
     '@ox_lib/init.lua',
-    'config/*.lua'
+    'config/config.lua',
+    'config/blips.lua',
+    'config/texts.lua'
 }
 
 client_scripts {
-    'client/main.lua',
-    'client/npc.lua',
-    'client/blips.lua',
     'client/ui.lua',
-    'client/police.lua'
+    'client/blips.lua',
+    'client/npc.lua',
+    'client/police.lua',
+    'client/admin.lua',
+    'client/main.lua'
 }
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
+    'server/database.lua',         -- Załaduj jako pierwszy (zarządza konfiguracją)
+    'server/migrate_to_mysql.lua', -- Helper do migracji
     'server/reputation.lua',
     'server/logs.lua',
     'server/police.lua',
+    'server/admin.lua',
     'server/main.lua',
     'server/commands.lua'
+}
+
+ui_page 'html/index.html'
+
+files {
+    'html/index.html',
+    'html/style.css',
+    'html/script.js'
 }
 
 dependencies {
@@ -35,4 +49,6 @@ dependencies {
     'ox_lib',
     'ox_inventory',
     'ox_target'
+    -- Odkomentuj poniższą linię aby używać lb_tablet
+    -- 'lb_tablet'
 }

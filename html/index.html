@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TD Tracker - Admin Panel</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="admin-panel" class="admin-panel hidden">
+        <div class="panel-container">
+            <!-- Header -->
+            <div class="panel-header">
+                <div class="header-content">
+                    <h1>🔧 TD Tracker - Admin Panel</h1>
+                    <button class="close-btn" id="close-panel">✕</button>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="panel-nav">
+                <button class="nav-tab active" data-tab="stats">📊 Statystyki</button>
+                <button class="nav-tab" data-tab="commands">⚙️ Komendy</button>
+                <button class="nav-tab" data-tab="missions">🎯 Misje</button>
+                <button class="nav-tab" data-tab="settings">🔧 Ustawienia</button>
+                <button class="nav-tab" data-tab="npc">👤 NPC Quest Giver</button>
+                <button class="nav-tab" data-tab="locations">📍 Lokacje</button>
+            </div>
+
+            <!-- Content Area -->
+            <div class="panel-content">
+                <!-- Stats Tab -->
+                <div class="tab-content active" id="stats-tab">
+                    <div class="content-header">
+                        <h2>Statystyki Graczy</h2>
+                        <input type="text" id="player-search" placeholder="🔍 Szukaj gracza..." class="search-input">
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-info">
+                                <span class="stat-label">Aktywni gracze</span>
+                                <span class="stat-value" id="active-players">0</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🚗</div>
+                            <div class="stat-info">
+                                <span class="stat-label">Aktywne misje</span>
+                                <span class="stat-value" id="active-missions">0</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-info">
+                                <span class="stat-label">Ukończone dziś</span>
+                                <span class="stat-value" id="completed-today">0</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">❌</div>
+                            <div class="stat-info">
+                                <span class="stat-label">Nieudane dziś</span>
+                                <span class="stat-value" id="failed-today">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="players-table-container">
+                        <table class="players-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Gracz</th>
+                                    <th>Reputacja</th>
+                                    <th>Ukończone</th>
+                                    <th>Nieudane</th>
+                                    <th>Status</th>
+                                    <th>Akcje</th>
+                                </tr>
+                            </thead>
+                            <tbody id="players-tbody">
+                                <!-- Dynamicznie generowane -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Commands Tab -->
+                <div class="tab-content" id="commands-tab">
+                    <div class="content-header">
+                        <h2>Panel Komend</h2>
+                    </div>
+
+                    <div class="commands-grid">
+                        <!-- Player Management -->
+                        <div class="command-section">
+                            <h3>🎮 Zarządzanie Graczami</h3>
+                            <div class="command-item">
+                                <label>ID Gracza:</label>
+                                <input type="number" id="cmd-player-id" placeholder="Server ID" class="input-field">
+                            </div>
+                            <div class="command-item">
+                                <label>Reputacja:</label>
+                                <input type="number" id="cmd-reputation" placeholder="Wartość" class="input-field">
+                            </div>
+                            <div class="command-buttons">
+                                <button class="cmd-btn" data-command="setRep">Ustaw Reputację</button>
+                                <button class="cmd-btn" data-command="addRep">Dodaj Reputację</button>
+                                <button class="cmd-btn" data-command="removeRep">Usuń Reputację</button>
+                                <button class="cmd-btn danger" data-command="resetRep">Reset Reputacji</button>
+                            </div>
+                        </div>
+
+                        <!-- Mission Management -->
+                        <div class="command-section">
+                            <h3>🎯 Zarządzanie Misjami</h3>
+                            <div class="command-item">
+                                <label>ID Gracza:</label>
+                                <input type="number" id="cmd-mission-player" placeholder="Server ID" class="input-field">
+                            </div>
+                            <div class="command-buttons">
+                                <button class="cmd-btn" data-command="cancelMission">Anuluj Misję</button>
+                                <button class="cmd-btn success" data-command="completeMission">Zakończ Misję</button>
+                                <button class="cmd-btn danger" data-command="failMission">Przegraj Misję</button>
+                            </div>
+                        </div>
+
+                        <!-- NPC Management -->
+                        <div class="command-section">
+                            <h3>👤 Zarządzanie NPC</h3>
+                            <div class="command-buttons">
+                                <button class="cmd-btn" data-command="spawnNPC">Zespawnuj NPC</button>
+                                <button class="cmd-btn" data-command="removeNPC">Usuń NPC</button>
+                                <button class="cmd-btn" data-command="respawnAllNPC">Respawn Wszystkich</button>
+                            </div>
+                        </div>
+
+                        <!-- System Management -->
+                        <div class="command-section">
+                            <h3>⚙️ System</h3>
+                            <div class="command-buttons">
+                                <button class="cmd-btn" data-command="reloadConfig">Przeładuj Config</button>
+                                <button class="cmd-btn" data-command="clearLogs">Wyczyść Logi</button>
+                                <button class="cmd-btn warning" data-command="toggleDebug">Toggle Debug</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Missions Tab -->
+                <div class="tab-content" id="missions-tab">
+                    <div class="content-header">
+                        <h2>Edytor Misji</h2>
+                        <button class="btn-primary" id="add-mission-btn">➕ Dodaj Misję</button>
+                    </div>
+
+                    <div class="missions-list" id="missions-list">
+                        <!-- Stage 1 -->
+                        <div class="mission-card">
+                            <div class="mission-header">
+                                <h3>🚗 Etap 1 - Kradzież</h3>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked data-stage="1">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="mission-details">
+                                <div class="detail-row">
+                                    <label>Min. Reputacja:</label>
+                                    <input type="number" value="0" data-stage="1" data-field="minReputation">
+                                </div>
+                                <div class="detail-row">
+                                    <label>Szansa A/B (%):</label>
+                                    <input type="number" value="20" data-stage="1" data-field="chanceToAorB">
+                                </div>
+                                <div class="detail-row">
+                                    <label>Limit czasu (ms):</label>
+                                    <input type="number" value="600000" data-stage="1" data-field="timeLimit">
+                                </div>
+                                <button class="btn-save" data-stage="1">💾 Zapisz Zmiany</button>
+                            </div>
+                        </div>
+
+                        <!-- Stage 2 -->
+                        <div class="mission-card">
+                            <div class="mission-header">
+                                <h3>🚚 Etap 2 - Transport</h3>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked data-stage="2">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="mission-details">
+                                <div class="detail-row">
+                                    <label>Min. Reputacja:</label>
+                                    <input type="number" value="500" data-stage="2" data-field="minReputation">
+                                </div>
+                                <div class="detail-row">
+                                    <label>Szansa A/B (%):</label>
+                                    <input type="number" value="40" data-stage="2" data-field="chanceToAorB">
+                                </div>
+                                <div class="detail-row">
+                                    <label>Limit czasu (ms):</label>
+                                    <input type="number" value="900000" data-stage="2" data-field="timeLimit">
+                                </div>
+                                <button class="btn-save" data-stage="2">💾 Zapisz Zmiany</button>
+                            </div>
+                        </div>
+
+                        <!-- Stage 3 -->
+                        <div class="mission-card">
+                            <div class="mission-header">
+                                <h3>🔧 Etap 3 - Rozbiórka</h3>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked data-stage="3">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="mission-details">
+                                <div class="detail-row">
+                                    <label>Min. Reputacja:</label>
+                                    <input type="number" value="1000" data-stage="3" data-field="minReputation">
+                                </div>
+                                <div class="detail-row">
+                                    <label>Szansa A/B (%):</label>
+                                    <input type="number" value="70" data-stage="3" data-field="chanceToAorB">
+                                </div>
+                                <div class="detail-row">
+                                    <label>Limit czasu (ms):</label>
+                                    <input type="number" value="1800000" data-stage="3" data-field="timeLimit">
+                                </div>
+                                <button class="btn-save" data-stage="3">💾 Zapisz Zmiany</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div class="tab-content" id="settings-tab">
+                    <div class="content-header">
+                        <h2>⚙️ Ustawienia Konfiguracyjne (MySQL)</h2>
+                        <button class="btn-primary" onclick="loadSettings()">🔄 Odśwież</button>
+                    </div>
+
+                    <div class="settings-container">
+                        <!-- General Settings -->
+                        <div class="settings-section">
+                            <h3>🎮 Ogólne</h3>
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="setting-debug" data-key="debug_mode">
+                                    <span>Debug Mode</span>
+                                </label>
+                                <small>Wyświetla dodatkowe informacje w konsoli</small>
+                            </div>
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="setting-anticheat" data-key="enable_anticheat">
+                                    <span>AntiCheat</span>
+                                </label>
+                                <small>Włącz system anty-cheat</small>
+                            </div>
+                            <div class="setting-item">
+                                <label>Max odległość od pojazdu (m):</label>
+                                <input type="number" id="setting-max-distance" data-key="max_distance_from_vehicle" value="150" min="10" max="500" step="10">
+                            </div>
+                            <div class="setting-item">
+                                <label>Interval sprawdzania (ms):</label>
+                                <input type="number" id="setting-check-interval" data-key="check_interval" value="5000" min="1000" max="30000" step="1000">
+                            </div>
+                        </div>
+
+                        <!-- Lockpick Settings -->
+                        <div class="settings-section">
+                            <h3>🔓 Lockpick</h3>
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="setting-require-lockpick" data-key="require_lockpick_item">
+                                    <span>Wymagaj przedmiotu</span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label>Szansa zepsucia (%):</label>
+                                <input type="number" id="setting-lockpick-break" data-key="lockpick_break_chance" value="15" min="0" max="100">
+                            </div>
+                        </div>
+
+                        <!-- Mission Settings -->
+                        <div class="settings-section">
+                            <h3>⏱️ Czas Misji</h3>
+                            <div class="setting-item">
+                                <label>Czas alarmu (ms):</label>
+                                <input type="number" id="setting-alarm-duration" data-key="alarm_duration" value="15000" min="5000" max="60000" step="1000">
+                            </div>
+                            <div class="setting-item">
+                                <label>Czas pościgu (ms):</label>
+                                <input type="number" id="setting-chase-time" data-key="chase_time" value="30000" min="10000" max="120000" step="1000">
+                            </div>
+                            <div class="setting-item">
+                                <label>Czas demontażu (ms):</label>
+                                <input type="number" id="setting-dismantle-time" data-key="dismantle_time" value="16000" min="5000" max="60000" step="1000">
+                            </div>
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="setting-dismantle-minigame" data-key="require_dismantle_minigame">
+                                    <span>Wymagaj minigry przy demontażu</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- NPC Chase Settings -->
+                        <div class="settings-section">
+                            <h3>🚔 Pościg NPC</h3>
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="setting-npc-chase" data-key="npc_chase_enabled">
+                                    <span>Włącz pościg NPC</span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label>Min. graczy policji aby wyłączyć NPC:</label>
+                                <input type="number" id="setting-min-police" data-key="min_police_for_npc_disable" value="5" min="0" max="20">
+                            </div>
+                            <div class="setting-item">
+                                <label>Początkowa liczba radiowozów:</label>
+                                <input type="number" id="setting-initial-chasers" data-key="npc_initial_chasers" value="10" min="1" max="50">
+                            </div>
+                            <div class="setting-item">
+                                <label>Maksymalna liczba radiowozów:</label>
+                                <input type="number" id="setting-max-chasers" data-key="npc_max_chasers" value="30" min="1" max="100">
+                            </div>
+                            <div class="setting-item">
+                                <label>Prędkość jazdy NPC:</label>
+                                <input type="number" id="setting-npc-speed" data-key="npc_drive_speed" value="200" min="50" max="300" step="10">
+                            </div>
+                            <div class="setting-item">
+                                <label>Dystans wysiadania (m):</label>
+                                <input type="number" id="setting-exit-distance" data-key="npc_exit_distance" value="200" min="50" max="500" step="10">
+                            </div>
+                            <div class="setting-item">
+                                <label>Opóźnienie wysiadania (ms):</label>
+                                <input type="number" id="setting-exit-delay" data-key="npc_exit_delay" value="1000" min="0" max="10000" step="100">
+                            </div>
+                        </div>
+
+                        <div class="settings-actions">
+                            <button class="btn-success" onclick="saveAllSettings()">💾 Zapisz Wszystkie Ustawienia</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NPC Quest Giver Tab -->
+                <div class="tab-content" id="npc-tab">
+                    <div class="content-header">
+                        <h2>👤 NPC Quest Giver - Zarządzanie Lokacjami</h2>
+                        <button class="btn-primary" onclick="loadNPCLocations()">🔄 Odśwież</button>
+                    </div>
+
+                    <div class="npc-container">
+                        <div class="npc-actions">
+                            <button class="btn-success" onclick="addNewNPC()">➕ Dodaj Nowy NPC</button>
+                            <button class="btn-primary" onclick="spawnAllNPC()">🎭 Zespawnuj Wszystkie NPC</button>
+                        </div>
+
+                        <div class="npc-list" id="npc-list">
+                            <!-- NPC locations will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Locations Tab -->
+                <div class="tab-content" id="locations-tab">
+                    <div class="content-header">
+                        <h2>Edytor Lokacji</h2>
+                        <div class="location-controls">
+                            <select id="location-type" class="select-field">
+                                <option value="">Wybierz typ lokacji...</option>
+                                <option value="stage1">Stage 1 - Pojazdy</option>
+                                <option value="stage1-delivery">Stage 1 - Punkty Dostawy</option>
+                                <option value="stage2-npc">Stage 2 - NPC Spawny</option>
+                                <option value="stage2-vehicle">Stage 2 - Pojazdy</option>
+                                <option value="stage2-hideout">Stage 2 - Kryjówki</option>
+                                <option value="stage3-npc">Stage 3 - NPC Spawny</option>
+                                <option value="stage3-vehicle">Stage 3 - Pojazdy</option>
+                                <option value="stage3-bus">Stage 3 - Bus Spawny</option>
+                                <option value="stage3-sell">Stage 3 - Punkty Sprzedaży</option>
+                            </select>
+                            <button class="btn-primary" id="add-location-btn">➕ Dodaj Lokację</button>
+                        </div>
+                    </div>
+
+                    <div class="locations-grid" id="locations-grid">
+                        <!-- Dynamicznie generowane karty lokacji -->
+                    </div>
+
+                    <!-- Freecam Info -->
+                    <div class="freecam-info hidden" id="freecam-info">
+                        <div class="freecam-controls">
+                            <h3>🎥 Tryb Freecam</h3>
+                            <p>WASD - Ruch | Q/E - Góra/Dół | Shift - Szybciej</p>
+                            <p>Enter - Zapisz pozycję | ESC - Anuluj</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="panel-footer">
+                <span>TD Tracker Admin Panel v1.0</span>
+                <span id="footer-status">Gotowy</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Start Mission -->
+    <div id="start-mission-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🎯 Start Misji dla Gracza</h3>
+                <button class="modal-close" onclick="closeStartMissionModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p>Wybierz stage misji:</p>
+                <div class="stage-buttons">
+                    <button class="stage-btn" onclick="confirmStartMission(1)">
+                        <span class="stage-icon">🔓</span>
+                        <span class="stage-name">Stage 1: Kradzież</span>
+                    </button>
+                    <button class="stage-btn" onclick="confirmStartMission(2)">
+                        <span class="stage-icon">🚚</span>
+                        <span class="stage-name">Stage 2: Transport</span>
+                    </button>
+                    <button class="stage-btn" onclick="confirmStartMission(3)">
+                        <span class="stage-icon">🔧</span>
+                        <span class="stage-name">Stage 3: Rozbiórka</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
