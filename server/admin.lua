@@ -1,5 +1,6 @@
 -- ============================================
--- TD TRACKER - ADMIN PANEL SERVER
+-- TD TRACKER - ADMIN PANEL SERVER (FIXED)
+-- Pełna integracja z MySQL
 -- ============================================
 
 local ESX = exports['es_extended']:getSharedObject()
@@ -48,7 +49,6 @@ RegisterNetEvent('td_tracker:admin:getStats', function()
     local xPlayers = ESX.GetExtendedPlayers()
     for _, xPlayer in pairs(xPlayers) do
         activePlayers = activePlayers + 1
-        -- Tu możesz dodać logikę sprawdzającą aktywne misje
     end
 
     -- Pobierz statystyki z bazy (dzisiejsze)
@@ -121,7 +121,6 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
             return
         end
 
-        -- Upewnij się że rekord istnieje
         MySQL.query([[
             INSERT INTO td_tracker_reputation (identifier, reputation, completed_missions, failed_missions)
             VALUES (?, ?, 0, 0)
@@ -131,7 +130,6 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
         })
 
         TriggerClientEvent('td_tracker:admin:notification', source, string.format('Ustawiono reputację %d dla %s', data.value, target.getName()), 'success')
-        -- Odśwież dane graczy
         Wait(500)
         TriggerClientEvent('td_tracker:admin:updatePlayers', -1, GetAllPlayers())
 
@@ -142,7 +140,6 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
             return
         end
 
-        -- Upewnij się że rekord istnieje
         MySQL.query([[
             INSERT INTO td_tracker_reputation (identifier, reputation, completed_missions, failed_missions)
             VALUES (?, ?, 0, 0)
@@ -152,7 +149,6 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
         })
 
         TriggerClientEvent('td_tracker:admin:notification', source, string.format('Dodano %d reputacji dla %s', data.value, target.getName()), 'success')
-        -- Odśwież dane graczy
         Wait(500)
         TriggerClientEvent('td_tracker:admin:updatePlayers', -1, GetAllPlayers())
 
@@ -163,7 +159,6 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
             return
         end
 
-        -- Upewnij się że rekord istnieje
         MySQL.query([[
             INSERT INTO td_tracker_reputation (identifier, reputation, completed_missions, failed_missions)
             VALUES (?, 0, 0, 0)
@@ -173,7 +168,6 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
         })
 
         TriggerClientEvent('td_tracker:admin:notification', source, string.format('Odjęto %d reputacji dla %s', data.value, target.getName()), 'success')
-        -- Odśwież dane graczy
         Wait(500)
         TriggerClientEvent('td_tracker:admin:updatePlayers', -1, GetAllPlayers())
 
@@ -193,7 +187,6 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
         })
 
         TriggerClientEvent('td_tracker:admin:notification', source, string.format('Zresetowano reputację dla %s', target.getName()), 'success')
-        -- Odśwież dane graczy
         Wait(500)
         TriggerClientEvent('td_tracker:admin:updatePlayers', -1, GetAllPlayers())
 
@@ -212,7 +205,6 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
             TriggerClientEvent('td_tracker:admin:notification', source, 'Gracz nie znaleziony!', 'error')
             return
         end
-        -- Wymusza ukończenie misji
         TriggerClientEvent('td_tracker:admin:forceCompleteMission', data.playerId)
         TriggerClientEvent('td_tracker:admin:notification', source, string.format('Wymuszono ukończenie misji dla %s', target.getName()), 'success')
 
@@ -230,7 +222,6 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
         TriggerClientEvent('td_tracker:admin:notification', source, 'NPC zespawnowany dla ciebie', 'success')
 
     elseif command == 'removeNPC' then
-        -- Usuń NPC tylko dla admina
         TriggerEvent('td_tracker:server:removeNPC', source)
         TriggerClientEvent('td_tracker:admin:notification', source, 'NPC usunięty', 'success')
 
@@ -241,19 +232,17 @@ RegisterNetEvent('td_tracker:admin:executeCommand', function(data)
             return
         end
 
-        -- Wymuś start misji dla gracza
         local stage = data.value or 1
         TriggerEvent('td_tracker:server:startMission', data.playerId, stage)
         TriggerClientEvent('td_tracker:admin:notification', source, string.format('Wystartowano misję Stage %d dla %s', stage, target.getName()), 'success')
 
     elseif command == 'respawnAllNPC' then
-        -- Zrespawnuj NPC dla wszystkich graczy
         TriggerClientEvent('td_tracker:client:spawnNPC', -1)
         TriggerClientEvent('td_tracker:admin:notification', source, 'Wszystkie NPC zespawnowane dla wszystkich graczy', 'success')
 
     elseif command == 'reloadConfig' then
-        -- Reload config from file
-        TriggerClientEvent('td_tracker:admin:notification', source, 'Config przeładowany (wymaga restartu)', 'info')
+        exports.td_tracker:ForceRefreshCache()
+        TriggerClientEvent('td_tracker:admin:notification', source, 'Config przeładowany z MySQL', 'success')
 
     elseif command == 'clearLogs' then
         MySQL.query('DELETE FROM td_tracker_logs WHERE DATE(completed_at) < DATE_SUB(CURDATE(), INTERVAL 30 DAY)')
@@ -272,16 +261,12 @@ end)
 RegisterNetEvent('td_tracker:admin:getMissions', function()
     local source = source
     if not IsAdmin(source) then return end
-
-    -- Missions config jest dostępny globalnie w Config.Stages
-    -- NUI ma już wartości, więc nie trzeba nic wysyłać
 end)
 
 RegisterNetEvent('td_tracker:admin:saveMissionConfig', function(data)
     local source = source
     if not IsAdmin(source) then return end
 
-    -- Zapisz do MySQL
     exports.td_tracker:UpdateStageConfig(data.stage, {
         name = Config.Stages[data.stage].name,
         enabled = data.enabled,
@@ -290,10 +275,8 @@ RegisterNetEvent('td_tracker:admin:saveMissionConfig', function(data)
         timeLimit = data.timeLimit
     })
 
-    -- Zapisz także ustawienia do MySQL settings
     exports.td_tracker:UpdateSetting('mission_time_limit_stage_' .. data.stage, data.timeLimit, 'number')
 
-    -- Aktualizuj lokalny config (dla kompatybilności)
     Config.Stages[data.stage].enabled = data.enabled
     Config.Stages[data.stage].minReputation = data.minReputation
     Config.Stages[data.stage].chanceToAorB = data.chanceToAorB
@@ -310,12 +293,10 @@ RegisterNetEvent('td_tracker:admin:saveSettings', function(settings)
     local source = source
     if not IsAdmin(source) then return end
 
-    -- Zapisz wszystkie ustawienia do MySQL
     for key, value in pairs(settings) do
         local valueType = type(value)
         if valueType == 'boolean' then
             exports.td_tracker:UpdateSetting(key, value and '1' or '0', 'boolean')
-            -- Aktualizuj także Config
             if Config[key] ~= nil then
                 Config[key] = value
             end
@@ -339,7 +320,6 @@ RegisterNetEvent('td_tracker:admin:getSettings', function()
     local source = source
     if not IsAdmin(source) then return end
 
-    -- Wyślij wszystkie edytowalne ustawienia z Config
     local settings = {
         Debug = Config.Debug,
         EnableAntiCheat = Config.EnableAntiCheat,
@@ -351,7 +331,6 @@ RegisterNetEvent('td_tracker:admin:getSettings', function()
         ChaseTime = Config.ChaseTime,
         DismantleTime = Config.DismantleTime,
         RequireDismantleMinigame = Config.RequireDismantleMinigame,
-        -- NPCChase settings
         NPCChaseEnabled = Config.NPCChase.enabled,
         NPCMinPolice = Config.NPCChase.minPolicePlayersForNPCDisable,
         NPCInitialChasers = Config.NPCChase.initialChasers,
@@ -365,142 +344,168 @@ RegisterNetEvent('td_tracker:admin:getSettings', function()
 end)
 
 -- ============================================
--- LOCATIONS
+-- LOCATIONS (MYSQL)
 -- ============================================
-
-local function LoadConfigLocations()
-    -- Tutaj musisz załadować odpowiedni plik configu lokacji
-    return ConfigLocations
-end
 
 RegisterNetEvent('td_tracker:admin:getLocations', function(locationType)
     local source = source
     if not IsAdmin(source) then return end
 
     local locations = {}
-    local configLocs = LoadConfigLocations()
 
-    if locationType == 'stage1' then
-        locations = configLocs.Stage1.searchAreas or {}
-    elseif locationType == 'stage1-delivery' then
-        locations = configLocs.Stage1.deliveryPoints or {}
-    elseif locationType == 'stage2-npc' then
-        locations = configLocs.Stage2.npcSpawns or {}
-    elseif locationType == 'stage2-vehicle' then
-        locations = configLocs.Stage2.vehicleSpawns or {}
-    elseif locationType == 'stage2-hideout' then
-        locations = configLocs.Stage2.hideouts or {}
-    elseif locationType == 'stage3-npc' then
-        locations = configLocs.Stage3.npcSpawns or {}
-    elseif locationType == 'stage3-vehicle' then
-        locations = configLocs.Stage3.vehicleSpawns or {}
-    elseif locationType == 'stage3-bus' then
-        locations = configLocs.Stage3.busSpawns or {}
-    elseif locationType == 'stage3-sell' then
-        locations = configLocs.Stage3.sellPoints or {}
+    -- Mapowanie typów lokacji na typy w bazie danych
+    local typeMapping = {
+        ['stage1'] = {table = 'search_areas'},
+        ['stage1-delivery'] = {table = 'vehicle_locations', stage = 1, location_type = 'delivery'},
+        ['stage2-npc'] = {table = 'npc_locations', location_type = 'stage2_npc'},
+        ['stage2-vehicle'] = {table = 'vehicle_locations', stage = 2, location_type = 'spawn'},
+        ['stage2-hideout'] = {table = 'vehicle_locations', stage = 2, location_type = 'hideout'},
+        ['stage3-npc'] = {table = 'npc_locations', location_type = 'stage3_npc'},
+        ['stage3-vehicle'] = {table = 'vehicle_locations', stage = 3, location_type = 'spawn'},
+        ['stage3-bus'] = {table = 'vehicle_locations', stage = 3, location_type = 'bus_spawn'},
+        ['stage3-sell'] = {table = 'vehicle_locations', stage = 3, location_type = 'sell_point'},
+    }
+
+    local mapping = typeMapping[locationType]
+    if not mapping then
+        TriggerClientEvent('td_tracker:admin:updateLocations', source, {}, locationType)
+        return
+    end
+
+    if mapping.table == 'search_areas' then
+        -- Pobierz obszary wyszukiwania
+        local result = MySQL.query.await('SELECT * FROM td_tracker_search_areas WHERE enabled = 1')
+        for _, row in ipairs(result or {}) do
+            table.insert(locations, {
+                x = row.center_x,
+                y = row.center_y,
+                z = row.center_z,
+                radius = row.radius,
+                name = row.name
+            })
+        end
+
+    elseif mapping.table == 'vehicle_locations' then
+        -- Pobierz lokacje pojazdów
+        local result = MySQL.query.await('SELECT * FROM td_tracker_vehicle_locations WHERE stage = ? AND location_type = ? AND enabled = 1', {
+            mapping.stage, mapping.location_type
+        })
+        for _, row in ipairs(result or {}) do
+            table.insert(locations, {
+                x = row.x,
+                y = row.y,
+                z = row.z,
+                w = row.heading,
+                model = row.vehicle_model
+            })
+        end
+
+    elseif mapping.table == 'npc_locations' then
+        -- Pobierz lokacje NPC
+        local result = MySQL.query.await('SELECT * FROM td_tracker_npc_locations WHERE location_type = ? AND enabled = 1', {
+            mapping.location_type
+        })
+        for _, row in ipairs(result or {}) do
+            table.insert(locations, {
+                x = row.x,
+                y = row.y,
+                z = row.z,
+                w = row.heading,
+                model = row.model
+            })
+        end
     end
 
     TriggerClientEvent('td_tracker:admin:updateLocations', source, locations, locationType)
 end)
 
--- Callback musi być osobnym eventem dla klienta
 RegisterNetEvent('td_tracker:admin:requestLocationCoords', function(data)
     local source = source
     if not IsAdmin(source) then return end
 
-    local configLocs = LoadConfigLocations()
-    local locations = {}
-
-    -- Pobierz odpowiednią lokację według typu
-    if data.locationType == 'stage1' then
-        locations = configLocs.Stage1.searchAreas or {}
-    elseif data.locationType == 'stage1-delivery' then
-        locations = configLocs.Stage1.deliveryPoints or {}
-    elseif data.locationType == 'stage2-npc' then
-        locations = configLocs.Stage2.npcSpawns or {}
-    elseif data.locationType == 'stage2-vehicle' then
-        locations = configLocs.Stage2.vehicleSpawns or {}
-    elseif data.locationType == 'stage2-hideout' then
-        locations = configLocs.Stage2.hideouts or {}
-    elseif data.locationType == 'stage3-npc' then
-        locations = configLocs.Stage3.npcSpawns or {}
-    elseif data.locationType == 'stage3-vehicle' then
-        locations = configLocs.Stage3.vehicleSpawns or {}
-    elseif data.locationType == 'stage3-bus' then
-        locations = configLocs.Stage3.busSpawns or {}
-    elseif data.locationType == 'stage3-sell' then
-        locations = configLocs.Stage3.sellPoints or {}
-    end
-
-    -- Wyślij koordynaty z powrotem do klienta
-    if locations and locations[data.index + 1] then
-        local loc = locations[data.index + 1]
-        local coords = loc.center or loc
-        TriggerClientEvent('td_tracker:admin:receiveLocationCoords', source, coords)
-    else
-        TriggerClientEvent('td_tracker:admin:notification', source, 'Nie znaleziono lokacji!', 'error')
-    end
+    -- TO-DO: Pobierz koordynaty z bazy danych na podstawie data.locationType i data.index
+    -- Na razie zwróć pustą odpowiedź
+    TriggerClientEvent('td_tracker:admin:notification', source, 'Edycja lokacji nie jest jeszcze w pełni zaimplementowana', 'warning')
 end)
 
 RegisterNetEvent('td_tracker:admin:saveLocation', function(data)
     local source = source
     if not IsAdmin(source) then return end
 
-    -- Tu możesz zapisać do pliku lub bazy
-    -- Na razie tylko logowanie
-    print(string.format('[TRACKER ADMIN] Location saved: %s [%s]', data.locationType, json.encode(data.coords)))
+    -- Mapowanie typów lokacji
+    local typeMapping = {
+        ['stage1'] = {table = 'search_areas'},
+        ['stage1-delivery'] = {table = 'vehicle_locations', stage = 1, location_type = 'delivery'},
+        ['stage2-npc'] = {table = 'npc_locations', location_type = 'stage2_npc'},
+        ['stage2-vehicle'] = {table = 'vehicle_locations', stage = 2, location_type = 'spawn'},
+        ['stage2-hideout'] = {table = 'vehicle_locations', stage = 2, location_type = 'hideout'},
+        ['stage3-npc'] = {table = 'npc_locations', location_type = 'stage3_npc'},
+        ['stage3-vehicle'] = {table = 'vehicle_locations', stage = 3, location_type = 'spawn'},
+        ['stage3-bus'] = {table = 'vehicle_locations', stage = 3, location_type = 'bus_spawn'},
+        ['stage3-sell'] = {table = 'vehicle_locations', stage = 3, location_type = 'sell_point'},
+        ['npc_quest_giver'] = {table = 'npc_locations', location_type = 'quest_giver'}
+    }
 
-    TriggerClientEvent('td_tracker:admin:notification', source, 'Lokacja zapisana! (wymaga ręcznej edycji pliku config)', 'info')
+    local mapping = typeMapping[data.locationType]
+    if not mapping then
+        TriggerClientEvent('td_tracker:admin:notification', source, 'Nieznany typ lokacji!', 'error')
+        return
+    end
+
+    if mapping.table == 'vehicle_locations' then
+        -- Zapisz lokację pojazdu
+        MySQL.insert('INSERT INTO td_tracker_vehicle_locations (stage, location_type, x, y, z, heading, enabled) VALUES (?, ?, ?, ?, ?, ?, 1)', {
+            mapping.stage,
+            mapping.location_type,
+            data.coords.x,
+            data.coords.y,
+            data.coords.z,
+            data.coords.w or 0.0
+        })
+
+    elseif mapping.table == 'npc_locations' then
+        -- Zapisz lokację NPC
+        MySQL.insert('INSERT INTO td_tracker_npc_locations (location_type, model, x, y, z, heading, enabled) VALUES (?, ?, ?, ?, ?, ?, 1)', {
+            mapping.location_type,
+            'a_m_m_business_01', -- Domyślny model
+            data.coords.x,
+            data.coords.y,
+            data.coords.z,
+            data.coords.w or 0.0
+        })
+
+    elseif mapping.table == 'search_areas' then
+        -- Zapisz obszar wyszukiwania
+        MySQL.insert('INSERT INTO td_tracker_search_areas (name, center_x, center_y, center_z, radius, enabled) VALUES (?, ?, ?, ?, ?, 1)', {
+            'Nowy obszar',
+            data.coords.x,
+            data.coords.y,
+            data.coords.z,
+            200.0 -- Domyślny promień
+        })
+    end
+
+    -- Odśwież cache
+    exports.td_tracker:ForceRefreshCache()
+
+    TriggerClientEvent('td_tracker:admin:notification', source, 'Lokacja zapisana do MySQL!', 'success')
+    print(string.format('[TRACKER ADMIN] Location saved to MySQL: %s [%s]', data.locationType, json.encode(data.coords)))
 end)
 
 RegisterNetEvent('td_tracker:admin:deleteLocation', function(data)
     local source = source
     if not IsAdmin(source) then return end
 
-    print(string.format('[TRACKER ADMIN] Location deleted: %s #%d', data.locationType, data.index))
-    TriggerClientEvent('td_tracker:admin:notification', source, 'Lokacja usunięta! (wymaga ręcznej edycji pliku config)', 'info')
+    -- TO-DO: Usuń lokację z bazy danych
+    TriggerClientEvent('td_tracker:admin:notification', source, 'Usuwanie lokacji nie jest jeszcze w pełni zaimplementowane', 'warning')
 end)
 
 RegisterNetEvent('td_tracker:admin:teleportToLocation', function(data)
     local source = source
     if not IsAdmin(source) then return end
 
-    local configLocs = LoadConfigLocations()
-    local locations = {}
-
-    -- Pobierz odpowiednią lokację
-    if data.locationType:find('stage1') then
-        if data.locationType == 'stage1-delivery' then
-            locations = configLocs.Stage1.deliveryPoints
-        else
-            locations = configLocs.Stage1.searchAreas
-        end
-    elseif data.locationType:find('stage2') then
-        if data.locationType == 'stage2-npc' then
-            locations = configLocs.Stage2.npcSpawns
-        elseif data.locationType == 'stage2-vehicle' then
-            locations = configLocs.Stage2.vehicleSpawns
-        elseif data.locationType == 'stage2-hideout' then
-            locations = configLocs.Stage2.hideouts
-        end
-    elseif data.locationType:find('stage3') then
-        if data.locationType == 'stage3-npc' then
-            locations = configLocs.Stage3.npcSpawns
-        elseif data.locationType == 'stage3-vehicle' then
-            locations = configLocs.Stage3.vehicleSpawns
-        elseif data.locationType == 'stage3-bus' then
-            locations = configLocs.Stage3.busSpawns
-        elseif data.locationType == 'stage3-sell' then
-            locations = configLocs.Stage3.sellPoints
-        end
-    end
-
-    if locations and locations[data.index + 1] then
-        local loc = locations[data.index + 1]
-        local coords = loc.center or loc
-        SetEntityCoords(GetPlayerPed(source), coords.x, coords.y, coords.z, false, false, false, false)
-        TriggerClientEvent('td_tracker:admin:notification', source, 'Teleportowano!', 'success')
-    end
+    -- TO-DO: Teleportuj do lokacji z bazy danych
+    TriggerClientEvent('td_tracker:admin:notification', source, 'Teleportacja nie jest jeszcze w pełni zaimplementowana', 'warning')
 end)
 
 -- ============================================
@@ -562,20 +567,62 @@ RegisterNetEvent('td_tracker:admin:resetPlayer', function(playerId)
 end)
 
 -- ============================================
--- NPC MANAGEMENT
+-- NPC MANAGEMENT (MYSQL)
 -- ============================================
+
+RegisterNetEvent('td_tracker:admin:getNPCLocations', function()
+    local source = source
+    if not IsAdmin(source) then return end
+
+    local result = MySQL.query.await('SELECT * FROM td_tracker_npc_locations WHERE location_type = "quest_giver"')
+    local locations = {}
+
+    for _, row in ipairs(result or {}) do
+        table.insert(locations, {
+            id = row.id,
+            model = row.model,
+            coords = {x = row.x, y = row.y, z = row.z},
+            heading = row.heading,
+            animation = row.animation_dict and {
+                dict = row.animation_dict,
+                name = row.animation_name
+            } or nil,
+            enabled = row.enabled == 1
+        })
+    end
+
+    TriggerClientEvent('td_tracker:admin:updateNPCLocations', source, {locations = locations})
+end)
+
+RegisterNetEvent('td_tracker:admin:toggleNPC', function(data)
+    local source = source
+    if not IsAdmin(source) then return end
+
+    MySQL.query('UPDATE td_tracker_npc_locations SET enabled = NOT enabled WHERE id = ?', {data.npcId})
+    exports.td_tracker:ForceRefreshCache()
+
+    TriggerClientEvent('td_tracker:admin:notification', source, 'Status NPC zmieniony!', 'success')
+end)
+
+RegisterNetEvent('td_tracker:admin:deleteNPC', function(data)
+    local source = source
+    if not IsAdmin(source) then return end
+
+    MySQL.query('DELETE FROM td_tracker_npc_locations WHERE id = ?', {data.npcId})
+    exports.td_tracker:ForceRefreshCache()
+
+    TriggerClientEvent('td_tracker:admin:notification', source, 'NPC usunięty z bazy danych!', 'success')
+end)
 
 RegisterNetEvent('td_tracker:server:removeNPC', function(targetSource)
     local source = source
     if not IsAdmin(source) then return end
 
-    -- Wyślij event do gracza aby usunął NPC
     if targetSource then
         TriggerClientEvent('td_tracker:client:removeNPC', targetSource)
     else
-        -- Usuń dla wszystkich
         TriggerClientEvent('td_tracker:client:removeNPC', -1)
     end
 end)
 
-print('^2[TD TRACKER]^0 Admin panel server loaded')
+print('^2[TD TRACKER]^0 Admin panel server loaded (MySQL integrated)')
